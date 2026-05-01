@@ -1,0 +1,226 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import { supabase } from '@/lib/supabase';
+import Link from 'next/link';
+
+export default function DashboardHome() {
+  const [loading, setLoading] = useState(true);
+  const [userName, setUserName] = useState('');
+  
+  const [kpi, setKpi] = useState({ omsetBulanIni: 0, piutangBeredar: 0, pesananAktif: 0 });
+  const [recentTrx, setRecentTrx] = useState<any[]>([]);
+  const [chartData, setChartData] = useState<{bulan: string, total: number}[]>([]);
+
+  useEffect(() => {
+    fetchDashboardData();
+  }, []);
+
+  const fetchDashboardData = async () => {
+    setLoading(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        setUserName(session.user.email?.split('@')[0] || 'Admin');
+      }
+
+      const { data: allTrx, error } = await supabase
+        .from('v_transaction_lifecycle')
+        .select('*')
+        .order('so_date', { ascending: false });
+
+      if (error) throw error;
+      const data = allTrx || [];
+
+      const now = new Date();
+      const currentMonth = now.getMonth();
+      const currentYear = now.getFullYear();
+
+      let omset = 0;
+      let piutang = 0;
+      let pesanan = 0;
+
+      // Persiapan Peta Grafik (6 Bulan Terakhir)
+      const monthNames = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Ags", "Sep", "Okt", "Nov", "Des"];
+      const chartMap = new Map();
+      
+      for (let i = 5; i >= 0; i--) {
+        const d = new Date(currentYear, currentMonth - i, 1);
+        chartMap.set(`${d.getFullYear()}-${d.getMonth()}`, {
+          bulan: monthNames[d.getMonth()],
+          total: 0
+        });
+      }
+
+      // --- LOOPING KALKULASI UTAMA ---
+      data.forEach(trx => {
+        const trxDate = new Date(trx.so_date);
+        
+        // Pengaman: Jika null, ubah paksa jadi angka 0 agar tidak merusak rumus (NaN)
+        const total = Number(trx.total_order_value) || 0; 
+        const paid = Number(trx.total_paid_amount) || 0;
+
+        // 1. Hitung Omset Bulan Ini
+        if (trxDate.getMonth() === currentMonth && trxDate.getFullYear() === currentYear) {
+          omset += total;
+        }
+
+        // 2. Hitung Piutang
+        if (total > paid) {
+          piutang += (total - paid);
+        }
+
+        // 3. Hitung Pesanan Aktif (PERBAIKAN: Semua yang belum Completed)
+        if (trx.delivery_status !== 'Completed') {
+          pesanan += 1;
+        }
+
+        // 4. Masukkan ke Grafik (Hanya jika tanggalnya masuk rentang 6 bulan terakhir)
+        const key = `${trxDate.getFullYear()}-${trxDate.getMonth()}`;
+        if (chartMap.has(key)) {
+          const current = chartMap.get(key);
+          chartMap.set(key, { ...current, total: current.total + total });
+        }
+      });
+
+      setKpi({ omsetBulanIni: omset, piutangBeredar: piutang, pesananAktif: pesanan });
+      setRecentTrx(data.slice(0, 5));
+      setChartData(Array.from(chartMap.values()));
+
+    } catch (error) {
+      console.error('Error fetching dashboard data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fmtRp = (num: number) => `Rp ${Number(num).toLocaleString('id-ID')}`;
+  const getGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 11) return 'Selamat Pagi';
+    if (hour < 15) return 'Selamat Siang';
+    if (hour < 18) return 'Selamat Sore';
+    return 'Selamat Malam';
+  };
+
+  // Nilai maksimum untuk menghitung persentase tinggi batang grafik
+  const maxChartValue = Math.max(...chartData.map(d => d.total), 1);
+
+  if (loading) {
+    return <div className="p-8 text-center text-gray-500 font-bold animate-pulse">Menyiapkan Ruang Kendali...</div>;
+  }
+
+  return (
+    <div className="space-y-6 max-w-[1600px] mx-auto pb-10">
+      
+      {/* --- HEADER --- */}
+      <div className="flex justify-between items-end bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
+        <div>
+          <h1 className="text-2xl font-black text-slate-800">{getGreeting()}, <span className="text-blue-600 capitalize">{userName}</span>! 👋</h1>
+          <p className="text-sm text-slate-500 mt-1">Berikut adalah ringkasan performa operasional CV. HJP hari ini.</p>
+        </div>
+        <div className="text-right hidden md:block">
+          <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Tanggal Hari Ini</p>
+          <p className="text-lg font-bold text-slate-800">{new Date().toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</p>
+        </div>
+      </div>
+
+      {/* --- LANTAI 1: KPI CARDS --- */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="bg-gradient-to-br from-blue-600 to-blue-800 p-6 rounded-2xl shadow-lg shadow-blue-900/20 text-white relative overflow-hidden">
+          <div className="relative z-10">
+            <p className="text-blue-100 text-sm font-bold uppercase tracking-wider mb-1">Total Penjualan (Bulan Ini)</p>
+            <h2 className="text-3xl font-black">{fmtRp(kpi.omsetBulanIni)}</h2>
+          </div>
+          <svg className="absolute -bottom-4 -right-4 w-32 h-32 text-blue-500/30" fill="currentColor" viewBox="0 0 20 20"><path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z" /></svg>
+        </div>
+
+        <div className="bg-gradient-to-br from-red-500 to-rose-700 p-6 rounded-2xl shadow-lg shadow-red-900/20 text-white relative overflow-hidden">
+          <div className="relative z-10">
+            <p className="text-red-100 text-sm font-bold uppercase tracking-wider mb-1">Sisa Piutang Berjalan</p>
+            <h2 className="text-3xl font-black">{fmtRp(kpi.piutangBeredar)}</h2>
+          </div>
+          <svg className="absolute -bottom-4 -right-4 w-32 h-32 text-red-400/30" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M4 4a2 2 0 00-2 2v4a2 2 0 002 2V6h10a2 2 0 00-2-2H4zm2 6a2 2 0 012-2h8a2 2 0 012 2v4a2 2 0 01-2 2H8a2 2 0 01-2-2v-4zm6 4a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" /></svg>
+        </div>
+
+        <div className="bg-gradient-to-br from-emerald-500 to-teal-700 p-6 rounded-2xl shadow-lg shadow-emerald-900/20 text-white relative overflow-hidden">
+          <div className="relative z-10">
+            <p className="text-emerald-100 text-sm font-bold uppercase tracking-wider mb-1">Pesanan Sedang Diproses</p>
+            <h2 className="text-3xl font-black">{kpi.pesananAktif} <span className="text-lg font-medium opacity-80">Dokumen SO</span></h2>
+          </div>
+          <svg className="absolute -bottom-4 -right-4 w-32 h-32 text-emerald-400/30" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+        </div>
+      </div>
+
+      {/* --- LANTAI 2 & 3: GRAFIK & TABEL --- */}
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+        
+        {/* AREA GRAFIK */}
+        <div className="xl:col-span-2 bg-white p-6 rounded-2xl border border-gray-100 shadow-sm flex flex-col">
+          <h3 className="text-lg font-bold text-slate-800 mb-6">Tren Penjualan (6 Bulan Terakhir)</h3>
+          
+          <div className="flex-1 flex items-end gap-2 sm:gap-6 pt-4 h-64 border-b-2 border-gray-100 pb-2">
+            {chartData.map((data, idx) => {
+              const heightPercent = maxChartValue > 0 ? (data.total / maxChartValue) * 100 : 0;
+              return (
+                <div key={idx} className="flex-1 flex flex-col items-center gap-3 group relative">
+                  {/* Tooltip Hover (Hanya muncul jika di-hover) */}
+                  <div className="opacity-0 group-hover:opacity-100 absolute -top-10 bg-slate-800 text-white text-xs font-bold py-1 px-2 rounded pointer-events-none transition-opacity whitespace-nowrap z-10 shadow-lg">
+                    {fmtRp(data.total)}
+                  </div>
+                  
+                  {/* Batang Grafik */}
+                  <div className="w-full bg-blue-50 rounded-t-lg relative flex items-end justify-center group-hover:bg-blue-100 transition-colors" style={{ height: '100%' }}>
+                    <div 
+                      // Menggunakan min-height agar batang grafik sedikit terlihat meski nilainya sangat kecil
+                      className="w-full bg-blue-500 rounded-t-md transition-all duration-1000 ease-out group-hover:bg-blue-600" 
+                      style={{ height: `${heightPercent}%`, minHeight: data.total > 0 ? '4px' : '0' }}
+                    ></div>
+                  </div>
+                  <span className="text-xs font-bold text-slate-500">{data.bulan}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* AREA TABEL RECENT TRANSACTIONS */}
+        <div className="xl:col-span-1 bg-white p-6 rounded-2xl border border-gray-100 shadow-sm flex flex-col">
+          <div className="flex justify-between items-center mb-6">
+            <h3 className="text-lg font-bold text-slate-800">Aktivitas Terkini</h3>
+            <Link href="/dashboard/reports" className="text-xs font-bold text-blue-600 hover:text-blue-800">
+              Lihat Semua &rarr;
+            </Link>
+          </div>
+          
+          <div className="flex-1 space-y-4">
+            {recentTrx.length === 0 ? (
+              <p className="text-sm text-gray-500 text-center py-4">Belum ada transaksi.</p>
+            ) : (
+              recentTrx.map((trx, idx) => (
+                <div key={idx} className="flex items-center gap-4 p-3 hover:bg-slate-50 rounded-xl transition-colors border border-transparent hover:border-slate-100">
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${
+                    trx.delivery_status === 'Completed' ? 'bg-green-100 text-green-600' : 'bg-orange-100 text-orange-600'
+                  }`}>
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-bold text-slate-800 truncate" title={trx.company_name}>{trx.company_name}</p>
+                    <p className="text-[10px] font-mono text-slate-500">{trx.so_number}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm font-black text-slate-800">{fmtRp(trx.total_order_value)}</p>
+                    <p className={`text-[10px] font-bold uppercase ${trx.payment_status === 'Paid' ? 'text-green-500' : 'text-red-500'}`}>
+                      {trx.payment_status}
+                    </p>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+
+      </div>
+    </div>
+  );
+}
