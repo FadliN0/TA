@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { supabase } from '../../lib/supabase';
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -11,13 +11,16 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
+  // 2. Inisialisasi Supabase client di dalam komponen
+  const supabase = createClientComponentClient();
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     setError(null);
 
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
+      const { error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
@@ -26,12 +29,18 @@ export default function LoginPage() {
         throw new Error(error.message);
       }
 
-      if (data.session) {
-        // Jika login berhasil, arahkan pengguna ke halaman dasbor
-        router.push('/dashboard');
-      }
+      // 3. WAJIB: Refresh router agar Server (Middleware) mendeteksi cookie baru
+      router.refresh();
+      // 4. Arahkan pengguna ke halaman dasbor
+      router.push('/dashboard');
+      
     } catch (err: any) {
-      setError(err.message || 'Terjadi kesalahan saat proses autentikasi.');
+      // Ubah pesan error default Supabase (bahasa Inggris) menjadi lebih ramah
+      if (err.message === 'Invalid login credentials') {
+        setError('Email atau kata sandi salah.');
+      } else {
+        setError(err.message || 'Terjadi kesalahan saat proses autentikasi.');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -39,7 +48,7 @@ export default function LoginPage() {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4">
-      <div className="w-full max-w-md space-y-8 rounded-xl bg-white p-10 shadow-lg border border-gray-100">
+      <div className="w-full max-w-md space-y-8 rounded-xl border border-gray-100 bg-white p-10 shadow-lg">
         
         {/* Header Logo/Title */}
         <div className="text-center">
@@ -54,7 +63,7 @@ export default function LoginPage() {
         {/* Form Login */}
         <form className="mt-8 space-y-6" onSubmit={handleLogin}>
           {error && (
-            <div className="rounded-md bg-red-50 p-4 text-sm text-red-700 border border-red-200">
+            <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-700">
               {error}
             </div>
           )}
@@ -92,7 +101,7 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={isLoading}
-              className="group relative flex w-full justify-center rounded-md border border-transparent bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:bg-blue-400"
+              className="group relative flex w-full justify-center rounded-md border border-transparent bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:bg-blue-400"
             >
               {isLoading ? 'Memverifikasi...' : 'Masuk ke Sistem'}
             </button>
