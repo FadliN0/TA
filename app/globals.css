@@ -2,34 +2,76 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  --background: #f9fafbff;
-  --foreground: #1f2937;
-  color-scheme: light;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+/* Kumpulan UI Standar "Corporate Trust" CV HJP */
+@layer components {
+  
+  /* =========================================
+     1. KARTU / WADAH UTAMA (CONTAINER)
+     ========================================= */
+  .card-modern {
+    @apply bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden;
   }
-}
 
-input, textarea, select {
-  color: #111827 !important;
-}
-
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
-}
-
-@media print {
-  @page {
-    margin: 0;
+  /* =========================================
+     2. TOMBOL (BUTTONS)
+     ========================================= */
+  /* Tombol Utama (Aksi Penting: Simpan, Tambah, Buat) */
+  .btn-primary {
+    @apply flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-bold px-5 py-2.5 rounded-xl shadow-sm shadow-blue-200 transition-all focus:ring-4 focus:ring-blue-500/20 active:scale-95 disabled:opacity-70 disabled:cursor-not-allowed disabled:shadow-none;
   }
-  body {
-    padding: 1.5cm;
+  
+  /* Tombol Sekunder (Aksi Alternatif: Batal, Kembali, Tutup) */
+  .btn-secondary {
+    @apply flex items-center justify-center gap-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 font-bold px-5 py-2.5 rounded-xl transition-all focus:ring-4 focus:ring-slate-100 active:scale-95 disabled:opacity-70 disabled:cursor-not-allowed;
+  }
+
+  /* Tombol Bahaya (Aksi Destruktif: Hapus, Tolak) */
+  .btn-danger {
+    @apply flex items-center justify-center gap-2 bg-rose-500 hover:bg-rose-600 text-white font-bold px-5 py-2.5 rounded-xl shadow-sm shadow-rose-200 transition-all focus:ring-4 focus:ring-rose-500/20 active:scale-95 disabled:opacity-70 disabled:cursor-not-allowed disabled:shadow-none;
+  }
+
+  /* =========================================
+     3. INPUT FORM (TEXT, SELECT, NUMBER)
+     ========================================= */
+  .input-modern {
+    @apply w-full bg-slate-50 border border-slate-200 text-slate-900 text-sm font-medium rounded-xl focus:ring-4 focus:ring-blue-500/20 focus:border-blue-500 focus:bg-white block p-3 transition-all outline-none disabled:bg-slate-100 disabled:text-slate-500;
+  }
+
+  /* =========================================
+     4. BADGE / LABEL STATUS
+     ========================================= */
+  /* Sukses (Selesai, Lunas, Terkirim) */
+  .badge-success {
+    @apply bg-emerald-100 text-emerald-700 px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider inline-block;
+  }
+  
+  /* Peringatan (Proses, Sebagian, Menunggu) */
+  .badge-warning {
+    @apply bg-amber-100 text-amber-700 px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider inline-block;
+  }
+
+  /* Bahaya (Gagal, Belum Bayar, Dibatalkan) */
+  .badge-danger {
+    @apply bg-rose-100 text-rose-700 px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider inline-block;
+  }
+
+  /* Netral (Draft, Arsip, Info biasa) */
+  .badge-neutral {
+    @apply bg-slate-100 text-slate-600 px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider inline-block border border-slate-200;
+  }
+
+  .label-modern {
+    @apply text-xs font-bold text-slate-500 uppercase;
+  }
+
+  @media print {
+    @page { 
+      margin: 0; 
+      size: A4;  
+    }     
+    body { 
+      -webkit-print-color-adjust: exact; 
+      print-color-adjust: exact; 
+    }
   }
 }

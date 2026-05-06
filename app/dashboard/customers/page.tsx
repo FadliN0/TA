@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
+import Modal from '@/components/ui/Modal';
 
 export default function CustomersPage() {
   const [customers, setCustomers] = useState<any[]>([]);
@@ -53,7 +54,6 @@ export default function CustomersPage() {
   const openModal = (mode: 'add' | 'edit', customer: any = null) => {
     setModalMode(mode);
     if (mode === 'edit' && customer) {
-      // Jika punya alamat di DB, load semuanya. Jika tidak, beri 1 form kosong.
       const addrs = customer.customer_addresses?.length > 0 
         ? customer.customer_addresses 
         : [{ id: '', address_type: 'Billing', pic_name: '', pic_phone: '', complete_address: '', is_default: true }];
@@ -104,7 +104,7 @@ export default function CustomersPage() {
     try {
       let currentCustomerId = formData.id;
 
-      // 1. Simpan/Update Data Perusahaan (customers)
+      // 1. Simpan/Update Data Perusahaan
       if (modalMode === 'add') {
         const { data: newCustomer, error: custError } = await supabase.from('customers').insert([{
           company_name: formData.company_name,
@@ -122,7 +122,7 @@ export default function CustomersPage() {
         if (custError) throw custError;
       }
 
-      // 2. Simpan/Update Data Banyak Alamat (DIPISAH AGAR SUPABASE TIDAK BINGUNG)
+      // 2. Simpan/Update Data Multi-Alamat
       const addressesToUpdate: any[] = [];
       const addressesToInsert: any[] = [];
 
@@ -136,28 +136,20 @@ export default function CustomersPage() {
           is_default: addr.is_default
         };
 
-        if (addr.id) {
-          // Jika sudah punya ID, masukkan ke antrean Update
-          addressesToUpdate.push({ ...payload, id: addr.id });
-        } else {
-          // Jika belum punya ID (alamat baru), masukkan ke antrean Insert
-          addressesToInsert.push(payload);
-        }
+        if (addr.id) addressesToUpdate.push({ ...payload, id: addr.id });
+        else addressesToInsert.push(payload);
       });
 
-      // Jalankan operasi Update untuk alamat lama
       if (addressesToUpdate.length > 0) {
         const { error: updateError } = await supabase.from('customer_addresses').upsert(addressesToUpdate);
         if (updateError) throw updateError;
       }
 
-      // Jalankan operasi Insert untuk alamat baru (database akan otomatis membuatkan UUID)
       if (addressesToInsert.length > 0) {
         const { error: insertError } = await supabase.from('customer_addresses').insert(addressesToInsert);
         if (insertError) throw insertError;
       }
 
-      alert(modalMode === 'add' ? 'Pelanggan berhasil ditambahkan!' : 'Data pelanggan berhasil diperbarui!');
       setIsModalOpen(false);
       fetchCustomers();
     } catch (error: any) {
@@ -168,14 +160,11 @@ export default function CustomersPage() {
   };
 
   const handleDelete = async (id: string, company_name: string) => {
-    if (!window.confirm(`Yakin ingin menghapus perusahaan "${company_name}" beserta semua alamatnya? \n(Akan ditolak oleh sistem jika klien ini sudah punya riwayat transaksi)`)) return;
+    if (!window.confirm(`Yakin ingin menghapus perusahaan "${company_name}" beserta semua alamatnya? \n(Akan ditolak jika klien sudah punya transaksi)`)) return;
     try {
-      // Hapus alamatnya dulu
       await supabase.from('customer_addresses').delete().eq('customer_id', id);
-      // Hapus perusahaannya
       const { error } = await supabase.from('customers').delete().eq('id', id);
       if (error) throw error;
-      alert('Pelanggan dihapus!');
       fetchCustomers();
     } catch (error: any) {
       alert('Gagal menghapus. Pelanggan ini sedang digunakan di dokumen transaksi.');
@@ -183,176 +172,194 @@ export default function CustomersPage() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-w-[1400px] mx-auto pb-10">
+      
       {/* KONTROL ATAS */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
         <div>
-          <h1 className="text-2xl font-bold text-gray-800">Master Data Pelanggan</h1>
-          <p className="text-sm text-gray-500">Kelola daftar klien/perusahaan (B2B) dan Multi-Alamat pengiriman.</p>
+          <h1 className="text-2xl font-black text-slate-800">Master Pelanggan</h1>
+          <p className="text-sm text-slate-500">Kelola daftar klien (B2B) dan multi-alamat pengiriman.</p>
         </div>
-        <button 
-          onClick={() => openModal('add')}
-          className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-lg font-bold shadow flex items-center gap-2"
-        >
-          + Tambah Pelanggan
+        <button onClick={() => openModal('add')} className="btn-primary w-full md:w-auto">
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+          Tambah Pelanggan
         </button>
       </div>
 
-      <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
-        <input 
-          type="text" 
-          placeholder="Cari Nama Perusahaan atau Nama PIC..." 
-          className="w-full border p-2.5 rounded-md text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
-      </div>
-
-      {/* TABEL PELANGGAN */}
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse min-w-[900px]">
-            <thead className="bg-gray-50 border-b border-gray-200">
-              <tr>
-                <th className="p-4 text-xs font-bold text-gray-400 uppercase">Perusahaan</th>
-                <th className="p-4 text-xs font-bold text-gray-400 uppercase">Kontak Kantor</th>
-                <th className="p-4 text-xs font-bold text-gray-400 uppercase">Daftar Alamat & PIC</th>
-                <th className="p-4 text-xs font-bold text-gray-400 uppercase text-center">Aksi</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {loading ? (
-                <tr><td colSpan={4} className="p-8 text-center text-gray-400">Memuat daftar pelanggan...</td></tr>
-              ) : filteredCustomers.length === 0 ? (
-                <tr><td colSpan={4} className="p-8 text-center text-gray-400">Data pelanggan tidak ditemukan.</td></tr>
-              ) : (
-                filteredCustomers.map((c) => (
-                  <tr key={c.id} className="hover:bg-emerald-50/30 transition-colors">
-                    <td className="p-4 font-bold text-gray-800 uppercase align-top">{c.company_name}</td>
-                    <td className="p-4 text-sm text-gray-600 align-top">
-                      <div>{c.email || '-'}</div>
-                      <div>{c.phone || '-'}</div>
-                    </td>
-                    <td className="p-4 text-sm align-top">
-                      {/* Mapping semua alamat yang dimiliki PT ini */}
-                      <div className="space-y-3">
-                        {c.customer_addresses?.map((addr: any, idx: number) => (
-                          <div key={addr.id || idx} className="bg-gray-50 p-2 rounded border border-gray-100 text-xs">
-                            <div className="flex justify-between items-center mb-1">
-                              <span className={`font-bold px-2 py-0.5 rounded text-[10px] uppercase ${addr.address_type?.toLowerCase() === 'billing' ? 'bg-blue-100 text-blue-700' : 'bg-orange-100 text-orange-700'}`}>
-                                {addr.address_type}
-                              </span>
-                              <span className="font-bold text-gray-700">{addr.pic_name} ({addr.pic_phone})</span>
-                            </div>
-                            <div className="text-gray-600">{addr.complete_address}</div>
-                          </div>
-                        ))}
-                      </div>
-                    </td>
-                    <td className="p-4 text-center align-top space-x-3">
-                      <button onClick={() => openModal('edit', c)} className="text-emerald-600 hover:text-emerald-800 font-bold text-sm">Edit</button>
-                      <button onClick={() => handleDelete(c.id, c.company_name)} className="text-red-500 hover:text-red-700 font-bold text-sm">Hapus</button>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+      {/* PENCARIAN */}
+      <div className="card-modern p-4">
+        <div className="relative">
+          <input 
+            type="text" 
+            placeholder="Cari Nama Perusahaan atau Nama PIC..." 
+            className="input-modern pl-10"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+          <svg className="w-5 h-5 absolute left-3 top-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
         </div>
       </div>
 
-      {/* === MODAL ADD/EDIT MULTI ADDRESS === */}
-      {isModalOpen && (
-        <div className="fixed inset-0 bg-black/60 z-[100] flex items-center justify-center p-4">
-          <form onSubmit={handleSave} className="bg-white rounded-2xl w-full max-w-3xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
-            <div className="bg-slate-900 p-4 text-white shrink-0 flex justify-between items-center">
-              <h2 className="text-xl font-bold">{modalMode === 'add' ? 'Tambah Pelanggan Baru' : 'Edit Pelanggan'}</h2>
-              <button type="button" onClick={() => setIsModalOpen(false)} className="text-gray-400 hover:text-white">✕</button>
-            </div>
-            
-            <div className="p-6 space-y-6 overflow-y-auto custom-scrollbar bg-gray-50/50">
+      {/* DATA PELANGGAN */}
+      {/* DATA PELANGGAN (GRID CARD MODERN - NO MORE BORING TABLES!) */}
+      {loading ? (
+        <div className="p-10 flex flex-col items-center justify-center gap-4">
+          <div className="w-10 h-10 border-4 border-slate-200 border-t-emerald-600 rounded-full animate-spin"></div>
+          <p className="text-slate-400 font-bold animate-pulse">Memuat data pelanggan...</p>
+        </div>
+      ) : filteredCustomers.length === 0 ? (
+        <div className="card-modern p-16 text-center flex flex-col items-center justify-center border-dashed border-2">
+          <svg className="w-16 h-16 text-slate-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
+          <h3 className="text-lg font-bold text-slate-700">Tidak ada pelanggan</h3>
+          <p className="text-sm text-slate-500 mt-1">Data yang kamu cari tidak ditemukan atau belum ada klien yang terdaftar.</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+          {filteredCustomers.map((c) => (
+            <div key={c.id} className="bg-white rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-all duration-300 flex flex-col group overflow-hidden">
               
-              {/* === IDENTITAS PT === */}
-              <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm">
-                <h3 className="text-sm font-black text-gray-800 border-b pb-2 mb-3">1. Identitas Perusahaan Utama</h3>
-                <div className="space-y-4">
-                  <div>
-                    <label className="text-xs font-bold text-gray-500 uppercase">Nama Perusahaan (B2B)</label>
-                    <input type="text" required value={formData.company_name} onChange={e => setFormData({...formData, company_name: e.target.value})} className="w-full border-2 border-gray-200 rounded p-2 mt-1 focus:border-emerald-500 outline-none text-sm font-bold uppercase" placeholder="PT. ANCARA COAL TERMINAL" />
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="text-xs font-bold text-gray-500 uppercase">Email Kantor</label>
-                      <input type="email" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} className="w-full border-2 border-gray-200 rounded p-2 mt-1 focus:border-emerald-500 outline-none text-sm" placeholder="info@perusahaan.com" />
-                    </div>
-                    <div>
-                      <label className="text-xs font-bold text-gray-500 uppercase">Telp Kantor</label>
-                      <input type="text" value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} className="w-full border-2 border-gray-200 rounded p-2 mt-1 focus:border-emerald-500 outline-none text-sm" placeholder="(021) 1234567" />
-                    </div>
+              {/* Card Header (Identitas PT & Action) */}
+              <div className="p-5 border-b border-slate-100 bg-slate-50/50 flex justify-between items-start gap-4">
+                <div className="flex-1">
+                  <h3 className="text-lg font-black text-slate-800 uppercase leading-tight mb-1">{c.company_name}</h3>
+                  <div className="flex flex-col gap-0.5">
+                    <span className="text-xs font-medium text-slate-500 flex items-center gap-1.5">
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
+                      {c.email || 'Tanpa Email'}
+                    </span>
+                    <span className="text-xs font-medium text-slate-500 flex items-center gap-1.5">
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>
+                      {c.phone || 'Tanpa Telepon'}
+                    </span>
                   </div>
                 </div>
-              </div>
-
-              {/* === ARRAY ALAMAT === */}
-              <div>
-                <div className="flex justify-between items-center border-b pb-2 mb-3">
-                  <h3 className="text-sm font-black text-gray-800">2. Daftar Alamat & PIC Klien</h3>
-                  <button type="button" onClick={addAddressField} className="text-xs font-bold bg-blue-100 text-blue-700 px-3 py-1 rounded hover:bg-blue-200">
-                    + Tambah Alamat Lain
+                
+                {/* Action Buttons (Muncul jelas saat di-hover di desktop) */}
+                <div className="flex flex-col gap-2 opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button onClick={() => openModal('edit', c)} className="p-2 bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white rounded-lg transition-colors" title="Edit Pelanggan">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                  </button>
+                  <button onClick={() => handleDelete(c.id, c.company_name)} className="p-2 bg-rose-50 text-rose-600 hover:bg-rose-600 hover:text-white rounded-lg transition-colors" title="Hapus Pelanggan">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                   </button>
                 </div>
+              </div>
 
-                <div className="space-y-4">
-                  {formData.addresses.map((addr, index) => (
-                    <div key={index} className="bg-white p-4 rounded-xl border-2 border-dashed border-gray-300 relative group hover:border-emerald-400 transition-colors">
-                      
-                      {/* Tombol Hapus Alamat (Jangan izinkan hapus alamat pertama) */}
-                      {index > 0 && (
-                        <button type="button" onClick={() => removeAddressField(index)} className="absolute top-2 right-2 text-xs bg-red-100 text-red-600 px-2 py-1 rounded font-bold hover:bg-red-200">
-                          Hapus Blok Ini
-                        </button>
-                      )}
-
-                      <div className="grid grid-cols-3 gap-4 mb-3">
-                        <div className="col-span-1">
-                          <label className="text-xs font-bold text-gray-500 uppercase">Tipe Alamat</label>
-                          <select 
-                            value={addr.address_type} 
-                            onChange={(e) => updateAddressField(index, 'address_type', e.target.value)} 
-                            className="w-full border-2 border-gray-200 rounded p-2 mt-1 outline-none text-sm font-bold text-gray-700"
-                          >
-                            <option value="Billing">Billing (Kantor Pusat)</option>
-                            <option value="Shipping">Shipping (Site/Gudang)</option>
-                          </select>
-                        </div>
-                        <div className="col-span-1">
-                          <label className="text-xs font-bold text-gray-500 uppercase">Nama PIC</label>
-                          <input type="text" required value={addr.pic_name} onChange={(e) => updateAddressField(index, 'pic_name', e.target.value)} className="w-full border-2 border-gray-200 rounded p-2 mt-1 outline-none text-sm" placeholder="Nama PIC" />
-                        </div>
-                        <div className="col-span-1">
-                          <label className="text-xs font-bold text-gray-500 uppercase">No HP PIC</label>
-                          <input type="text" required value={addr.pic_phone} onChange={(e) => updateAddressField(index, 'pic_phone', e.target.value)} className="w-full border-2 border-gray-200 rounded p-2 mt-1 outline-none text-sm" placeholder="0812..." />
+              {/* Card Body (Daftar Alamat) */}
+              <div className="p-5 flex-1 flex flex-col gap-3 bg-white">
+                <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Daftar Alamat & PIC</h4>
+                
+                <div className="space-y-3 overflow-y-auto custom-scrollbar max-h-[220px] pr-2">
+                  {c.customer_addresses?.map((addr: any, idx: number) => (
+                    <div key={addr.id || idx} className="bg-slate-50 p-3.5 rounded-xl border border-slate-100 text-xs">
+                      <div className="flex justify-between items-start mb-2">
+                        <span className={addr.address_type?.toLowerCase() === 'billing' ? 'badge-success' : 'badge-warning'}>
+                          {addr.address_type}
+                        </span>
+                        <div className="text-right">
+                          <span className="font-bold text-slate-800 block">{addr.pic_name}</span>
+                          <span className="text-slate-500 font-mono text-[10px] block">{addr.pic_phone}</span>
                         </div>
                       </div>
-                      <div>
-                        <label className="text-xs font-bold text-gray-500 uppercase">Alamat Lengkap Site / Kantor</label>
-                        <textarea required rows={2} value={addr.complete_address} onChange={(e) => updateAddressField(index, 'complete_address', e.target.value)} className="w-full border-2 border-gray-200 rounded p-2 mt-1 outline-none text-sm resize-none" placeholder="Jln. Raya Proyek Site A..." />
-                      </div>
+                      <div className="text-slate-600 leading-relaxed font-medium">{addr.complete_address}</div>
                     </div>
                   ))}
+                  
+                  {/* Pesan jika belum ada alamat */}
+                  {(!c.customer_addresses || c.customer_addresses.length === 0) && (
+                     <div className="text-xs text-slate-400 italic text-center py-4">Belum ada alamat terdaftar</div>
+                  )}
                 </div>
               </div>
-            </div>
 
-            <div className="p-4 bg-white border-t flex justify-end gap-3 shrink-0">
-              <button type="button" onClick={() => setIsModalOpen(false)} className="px-5 py-2 text-gray-600 font-bold hover:bg-gray-200 rounded-lg">Batal</button>
-              <button type="submit" disabled={isSaving} className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg shadow disabled:bg-emerald-300">
-                {isSaving ? 'Menyimpan...' : 'Simpan Semua Data'}
-              </button>
             </div>
-          </form>
+          ))}
         </div>
       )}
+
+      {/* ==========================================
+          MODAL COMPONENT ADD/EDIT
+          ========================================== */}
+      <Modal 
+        isOpen={isModalOpen} 
+        onClose={() => setIsModalOpen(false)} 
+        title={modalMode === 'add' ? 'Tambah Pelanggan Baru' : 'Edit Data Pelanggan'}
+        footer={
+          <>
+            <button type="button" onClick={() => setIsModalOpen(false)} className="btn-secondary">Batal</button>
+            <button type="submit" form="customerForm" disabled={isSaving} className="btn-primary">
+              {isSaving ? 'Menyimpan...' : 'Simpan Pelanggan'}
+            </button>
+          </>
+        }
+      >
+        <form id="customerForm" onSubmit={handleSave} className="space-y-8">
+          
+          {/* === IDENTITAS PT === */}
+          <div className="space-y-4">
+            <h3 className="text-sm font-black text-slate-800 border-b border-slate-200 pb-2">1. Identitas Perusahaan Utama</h3>
+            <div>
+              <label className="label-modern">Nama Perusahaan (B2B)</label>
+              <input type="text" required value={formData.company_name} onChange={e => setFormData({...formData, company_name: e.target.value})} className="input-modern uppercase font-bold" placeholder="PT. ANCARA COAL TERMINAL" />
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="label-modern">Email Kantor</label>
+                <input type="email" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} className="input-modern" placeholder="info@perusahaan.com" />
+              </div>
+              <div>
+                <label className="label-modern">Telp Kantor</label>
+                <input type="text" value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} className="input-modern" placeholder="(021) 1234567" />
+              </div>
+            </div>
+          </div>
+
+          {/* === ARRAY ALAMAT === */}
+          <div>
+            <div className="flex justify-between items-center border-b border-slate-200 pb-2 mb-4">
+              <h3 className="text-sm font-black text-slate-800">2. Daftar Alamat & PIC Klien</h3>
+              <button type="button" onClick={addAddressField} className="text-xs font-bold text-blue-600 hover:text-blue-800 bg-blue-50 px-3 py-1.5 rounded-lg transition-colors">
+                + Tambah Alamat Lain
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              {formData.addresses.map((addr, index) => (
+                <div key={index} className="bg-slate-50 p-5 rounded-2xl border border-slate-200 relative group">
+                  
+                  {index > 0 && (
+                    <button type="button" onClick={() => removeAddressField(index)} className="absolute -top-3 -right-3 bg-rose-100 text-rose-600 hover:bg-rose-500 hover:text-white p-1.5 rounded-full transition-colors shadow-sm">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                    </button>
+                  )}
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                    <div>
+                      <label className="label-modern">Tipe Alamat</label>
+                      <select value={addr.address_type} onChange={(e) => updateAddressField(index, 'address_type', e.target.value)} className="input-modern">
+                        <option value="Billing">Billing (Kantor Pusat)</option>
+                        <option value="Shipping">Shipping (Site/Gudang)</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="label-modern">Nama PIC</label>
+                      <input type="text" required value={addr.pic_name} onChange={(e) => updateAddressField(index, 'pic_name', e.target.value)} className="input-modern" placeholder="Nama PIC" />
+                    </div>
+                    <div>
+                      <label className="label-modern">No HP PIC</label>
+                      <input type="text" required value={addr.pic_phone} onChange={(e) => updateAddressField(index, 'pic_phone', e.target.value)} className="input-modern" placeholder="0812..." />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="label-modern">Alamat Lengkap Site / Kantor</label>
+                    <textarea required rows={2} value={addr.complete_address} onChange={(e) => updateAddressField(index, 'complete_address', e.target.value)} className="input-modern resize-none" placeholder="Jln. Raya Proyek Site A..." />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </form>
+      </Modal>
 
     </div>
   );

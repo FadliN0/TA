@@ -7,7 +7,7 @@ import Link from 'next/link';
 
 export default function EditQuotationPage() {
   const router = useRouter();
-  const { id } = useParams(); // ID dokumen lama (Parent)
+  const { id } = useParams(); // ID dokumen yang sedang diedit
   
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -22,9 +22,8 @@ export default function EditQuotationPage() {
   const [validUntil, setValidUntil] = useState('');
   const [selectedCustomerId, setSelectedCustomerId] = useState('');
   const [selectedAddressId, setSelectedAddressId] = useState('');
-  const [mrNumber, setMrNumber] = useState(''); // Fitur MR Klien yang sudah kita buat
+  const [mrNumber, setMrNumber] = useState(''); 
   const [notes, setNotes] = useState('');
-  const [revisionNumber, setRevisionNumber] = useState(0);
   const [items, setItems] = useState<any[]>([]);
 
   useEffect(() => {
@@ -38,7 +37,7 @@ export default function EditQuotationPage() {
       if (prods) setProductsList(prods);
       if (custs) setCustomersList(custs);
 
-      // Tarik Data Quotation Lama sebagai acuan pengisian Form
+      // Tarik Data Quotation Lama
       const { data: quote, error: qErr } = await supabase.from('quotations').select('*').eq('id', id).single();
       if (qErr) throw qErr;
 
@@ -47,13 +46,12 @@ export default function EditQuotationPage() {
       setSelectedCustomerId(quote.customer_id);
       setSelectedAddressId(quote.address_id);
       setMrNumber(quote.mr_number || '');
-      setNotes(quote.notes || 'Ready Stock\nFranco Site');
-      setRevisionNumber(quote.revision_number);
+      setNotes(quote.notes || '');
 
       const { data: addrs } = await supabase.from('customer_addresses').select('*').eq('customer_id', quote.customer_id);
       if (addrs) setAddressesList(addrs);
 
-      // Tarik Item Lama untuk diedit di UI
+      // Tarik Item Lama untuk diedit
       const { data: itemsData, error: iErr } = await supabase
         .from('quotation_items')
         .select(`*, products(part_code, part_name, unit, price)`)
@@ -68,8 +66,7 @@ export default function EditQuotationPage() {
         unit: i.products?.unit,
         qty: i.qty,
         unit_price: i.unit_price,
-        discount: i.discount, // Persentase
-        item_note: i.item_note || ''
+        discount: i.discount, 
       }));
       setItems(formattedItems);
 
@@ -126,51 +123,56 @@ export default function EditQuotationPage() {
     setError(null);
 
     try {
-      // 1. GENERATE NOMOR REVISI BARU
-      // Jika nomor aslinya 'QO-...-001', revisi ke-1 jadi 'QO-...-001-R1'
-      // Jika sedang mengedit 'QO-...-001-R1', revisi ke-2 jadi 'QO-...-001-R2'
-      const baseNumber = quotationNumber.split('-R')[0]; // Membuang akhiran -R lama jika ada
-      const newRevNumber = revisionNumber + 1;
-      const newQuotationNumber = `${baseNumber}-R${newRevNumber}`;
-
-      // 2. INSERT DOKUMEN BARU
-      const { data: newQuote, error: qErr } = await supabase.from('quotations').insert([{
-        quotation_number: newQuotationNumber, // Menggunakan nomor dengan akhiran -R
-        customer_id: selectedCustomerId,
-        address_id: selectedAddressId,
-        valid_until: validUntil,
-        mr_number: mrNumber,
-        notes: notes,
-        grand_total: grandTotal,
-        parent_id: id, 
-        status: 'Draft' 
-      }]).select().single();
+      // 1. UPDATE DOKUMEN UTAMA (TIMPA DATA LAMA)
+      const { error: qErr } = await supabase
+        .from('quotations')
+        .update({
+          customer_id: selectedCustomerId,
+          address_id: selectedAddressId,
+          valid_until: validUntil,
+          mr_number: mrNumber,
+          notes: notes,
+          grand_total: grandTotal,
+          status: 'Draft' // Status kembali ke Draft setelah diedit
+        })
+        .eq('id', id); // Penentu dokumen mana yang diupdate
 
       if (qErr) throw qErr;
 
-      // 3. INSERT ITEM KE DOKUMEN BARU
+      // 2. HAPUS SEMUA ITEM LAMA
+      // Ini cara paling aman agar jika ada barang yang Anda 'X' (hapus) di layar, 
+      // ikut terhapus bersih di database.
+      const { error: delErr } = await supabase
+        .from('quotation_items')
+        .delete()
+        .eq('quotation_id', id);
+        
+      if (delErr) throw delErr;
+
+      // 3. INSERT ITEM BARU / ITEM YANG SUDAH DIEDIT
       const itemsToInsert = items.map(i => {
         const lineTotal = i.qty * i.unit_price;
         const discountAmount = lineTotal * ((i.discount || 0) / 100);
         return {
-          quotation_id: newQuote.id, 
+          quotation_id: id, // Gunakan ID dokumen yang saat ini
           product_id: i.product_id,
           qty: i.qty,
           unit_price: i.unit_price,
           discount: i.discount,
           total_price: lineTotal - discountAmount,
-          item_note: i.item_note
         };
       });
 
       const { error: iErr } = await supabase.from('quotation_items').insert(itemsToInsert);
       if (iErr) throw iErr;
 
-      router.push(`/dashboard/quotations/${newQuote.id}`);
+      alert('Dokumen berhasil diperbarui!');
+      router.push(`/dashboard/quotations/${id}`);
       router.refresh();
+      
     } catch (err: any) {
       console.error(err);
-      setError(err.message);
+      setError(`Gagal menyimpan perubahan: ${err.message}`);
     } finally {
       setIsSaving(false);
     }
@@ -182,22 +184,24 @@ export default function EditQuotationPage() {
     <div className="max-w-6xl mx-auto p-6 space-y-6">
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-2xl font-bold text-gray-800">Revisi Quotation</h1>
+          <h1 className="text-2xl font-bold text-gray-800">Edit Quotation</h1>
           <p className="text-sm text-gray-500">
-            Akan membuat Revisi ke-{revisionNumber + 1} (Dokumen lama akan dikunci otomatis)
+            Ubah data pelanggan, masa berlaku, atau daftar barang.
           </p>
         </div>
-        <Link href={`/dashboard/quotations/${id}`} className="text-sm text-blue-600">Batal & Kembali</Link>
+        <Link href={`/dashboard/quotations/${id}`} className="text-sm text-blue-600 font-bold hover:underline">
+          Batal & Kembali
+        </Link>
       </div>
 
       <form onSubmit={handleSubmit} className="bg-white border rounded-xl shadow-sm p-8 space-y-8">
-        {error && <div className="p-4 bg-red-50 text-red-600 rounded border border-red-100 text-sm">{error}</div>}
+        {error && <div className="p-4 bg-red-50 text-red-600 rounded border border-red-100 text-sm font-bold">{error}</div>}
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8 border-b pb-8">
           <div className="space-y-4">
             <div>
               <label className="text-[10px] font-bold text-gray-400 uppercase">Quotation Number</label>
-              <input type="text" readOnly value={quotationNumber} className="w-full border p-2 rounded mt-1 font-mono text-sm bg-gray-100 cursor-not-allowed" />
+              <input type="text" readOnly value={quotationNumber} className="w-full border p-2 rounded mt-1 font-mono text-sm bg-gray-100 cursor-not-allowed text-gray-600" />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
@@ -240,7 +244,7 @@ export default function EditQuotationPage() {
               </div>
               <div className="flex-[2] min-w-[200px]">
                 <label className="text-[10px] font-bold text-gray-400 uppercase">Part Name</label>
-                <input type="text" readOnly value={item.part_name} className="w-full border p-2 rounded text-sm bg-gray-200 mt-1" />
+                <input type="text" readOnly value={item.part_name || ''} className="w-full border p-2 rounded text-sm bg-gray-200 mt-1" />
               </div>
               <div className="w-20">
                 <label className="text-[10px] font-bold text-gray-400 uppercase text-center block">Qty</label>
@@ -254,14 +258,10 @@ export default function EditQuotationPage() {
                 <label className="text-[10px] font-bold text-gray-400 uppercase text-right block">Disc (%)</label>
                 <input type="number" min="0" max="100" value={item.discount} onChange={e => updateItemField(idx, 'discount', parseFloat(e.target.value) || 0)} className="w-full border p-2 rounded text-sm text-right mt-1 text-red-600 font-bold" />
               </div>
-              <div className="flex-[1.5] min-w-[120px]">
-                <label className="text-[10px] font-bold text-gray-400 uppercase">Item Note</label>
-                <input type="text" value={item.item_note} onChange={e => updateItemField(idx, 'item_note', e.target.value)} placeholder="Cth: Indent 2 hr" className="w-full border p-2 rounded text-sm mt-1" />
-              </div>
-              <button type="button" onClick={() => setItems(items.filter((_, i) => i !== idx))} className="mb-2 text-red-400 hover:text-red-600 p-1">✕</button>
+              <button type="button" onClick={() => setItems(items.filter((_, i) => i !== idx))} className="mb-2 text-red-400 hover:text-red-600 p-1 font-bold">✕</button>
             </div>
           ))}
-          <button type="button" onClick={() => setItems([...items, { product_id: '', part_code: '', part_name: '', unit: '', qty: 1, unit_price: 0, discount: 0, item_note: '' }])} className="text-blue-600 text-xs font-bold">+ ADD ITEM LINE</button>
+          <button type="button" onClick={() => setItems([...items, { product_id: '', part_code: '', part_name: '', unit: '', qty: 1, unit_price: 0, discount: 0 }])} className="text-blue-600 text-xs font-bold hover:underline">+ TAMBAH BARANG</button>
         </div>
 
         <div className="pt-6 border-t">
@@ -271,6 +271,7 @@ export default function EditQuotationPage() {
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             className="w-full border p-3 rounded-md mt-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+            placeholder="Ketik catatan tambahan di sini..."
           />
         </div>
 
@@ -279,8 +280,8 @@ export default function EditQuotationPage() {
             <p className="text-[10px] font-bold text-gray-400 uppercase">Grand Total</p>
             <p className="text-3xl font-black text-blue-700">Rp {grandTotal.toLocaleString('id-ID')}</p>
           </div>
-          <button type="submit" disabled={isSaving} className="bg-yellow-500 hover:bg-yellow-600 text-white px-12 py-4 rounded-xl font-bold shadow-lg disabled:bg-yellow-300 transition-all">
-            {isSaving ? 'Menyimpan...' : 'SIMPAN REVISI BARU'}
+          <button type="submit" disabled={isSaving} className="bg-blue-600 hover:bg-blue-700 text-white px-10 py-4 rounded-xl font-bold shadow-lg disabled:bg-blue-300 transition-all uppercase tracking-wider">
+            {isSaving ? 'Menyimpan...' : 'Simpan Perubahan'}
           </button>
         </div>
       </form>

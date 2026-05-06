@@ -6,18 +6,25 @@ export async function middleware(req: NextRequest) {
   const res = NextResponse.next()
   const supabase = createMiddlewareClient({ req, res })
 
-  const {
-    data: { session },
-  } = await supabase.auth.getSession()
+  // PENTING: Refresh session agar cookie tetap valid
+  const { data: { session } } = await supabase.auth.getSession()
 
-  // Jika belum login dan mencoba akses selain halaman login, lempar ke /login
-  if (!session && !req.nextUrl.pathname.startsWith('/login')) {
+  const isAuthPage = req.nextUrl.pathname.startsWith('/login')
+  const isDashboardPage = req.nextUrl.pathname.startsWith('/dashboard')
+
+  // Logika 1: Jika belum login tapi mau ke dashboard -> Tendang ke Login
+  if (!session && isDashboardPage) {
     return NextResponse.redirect(new URL('/login', req.url))
+  }
+
+  // Logika 2: Jika sudah login tapi mau ke login lagi -> Tendang ke Dashboard
+  if (session && isAuthPage) {
+    return NextResponse.redirect(new URL('/dashboard', req.url))
   }
 
   return res
 }
 
 export const config = {
-  matcher: ['/dashboard/:path*', '/admin/:path*'],
+  matcher: ['/dashboard/:path*', '/login'],
 }

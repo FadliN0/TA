@@ -5,6 +5,29 @@ import { useParams, useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
 
+/* ─── Style helpers ─── */
+const tdBase: React.CSSProperties = { padding: '2px 0', verticalAlign: 'top', fontSize: 11 };
+const tdLabel: React.CSSProperties = { ...tdBase, width: 58, whiteSpace: 'nowrap' };
+const tdColon: React.CSSProperties = { ...tdBase, width: 10, paddingRight: 6 };
+const tdValue: React.CSSProperties = { ...tdBase };
+
+const thStyle: React.CSSProperties = {
+  border: '1px solid #bbb', 
+  padding: '6px 6px',
+  textAlign: 'center',
+  background: '#ffffff', 
+  color: '#000000', 
+  fontWeight: 700,
+  fontSize: 11,
+};
+
+const tdItem: React.CSSProperties = {
+  border: '1px solid #bbb',
+  padding: '5px 6px',
+  fontSize: 11,
+  verticalAlign: 'middle',
+};
+
 export default function QuotationDetailPage() {
   const { id } = useParams();
   const router = useRouter();
@@ -14,6 +37,13 @@ export default function QuotationDetailPage() {
   const [customer, setCustomer] = useState<any>(null);
   const [address, setAddress] = useState<any>(null);
   const [items, setItems] = useState<any[]>([]);
+
+  // ── PERUBAHAN: State untuk menyimpan data SO jika sudah dibuat ──
+  const [existingSO, setExistingSO] = useState<any>(null);
+
+  const [isCreatingSO, setIsCreatingSO] = useState(false);
+  const [isPOModalOpen, setIsPOModalOpen] = useState(false);
+  const [poInput, setPoInput] = useState('');
 
   useEffect(() => {
     fetchQuotationData();
@@ -25,6 +55,17 @@ export default function QuotationDetailPage() {
       const { data: quoteData, error: qErr } = await supabase.from('quotations').select('*').eq('id', id).single();
       if (qErr) throw qErr;
       setQuotation(quoteData);
+
+      // ── PERUBAHAN: Cek apakah Quotation ini sudah punya SO ──
+      const { data: soData } = await supabase
+        .from('sales_orders')
+        .select('id, so_number')
+        .eq('quotation_id', id)
+        .maybeSingle(); // Pakai maybeSingle agar tidak error jika belum ada
+      
+      if (soData) {
+        setExistingSO(soData);
+      }
 
       if (quoteData.customer_id) {
         const { data: custData } = await supabase.from('customers').select('*').eq('id', quoteData.customer_id).single();
@@ -54,6 +95,12 @@ export default function QuotationDetailPage() {
   const handlePrint = () => window.print();
 
   const handleUpdateStatus = async (newStatus: string) => {
+    // ── PERUBAHAN: Cegah update status jika sudah terkunci ──
+    if (existingSO) {
+      alert("Dokumen ini sudah terkunci karena Sales Order telah diterbitkan.");
+      return;
+    }
+
     const { error } = await supabase.from('quotations').update({ status: newStatus }).eq('id', id);
     if (!error) setQuotation({ ...quotation, status: newStatus });
   };
@@ -66,21 +113,15 @@ export default function QuotationDetailPage() {
     return diffDays > 0 ? diffDays : 0;
   };
 
-  const [isCreatingSO, setIsCreatingSO] = useState(false);
-
-  const handleCreateSO = async () => {
-    // Karena po_number di database kamu NOT NULL, kita WAJIB meminta input PO dari customer
-    const poInput = window.prompt('Masukkan Nomor PO (Purchase Order) dari Klien untuk melanjutkan:');
-
-    // Jika admin menekan "Cancel" atau membiarkan kosong, batalkan proses
-    if (poInput === null || poInput.trim() === '') {
-      alert('Pembuatan Sales Order dibatalkan. Nomor PO dari klien wajib diisi!');
+  const handleCreateSO = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!poInput.trim()) {
+      alert('Nomor PO dari klien wajib diisi!');
       return;
     }
-    
+
     setIsCreatingSO(true);
     try {
-      // 1. Generate SO Number Otomatis (SO-HJP-202604-001)
       const today = new Date();
       const yearMonth = `${today.getFullYear()}${String(today.getMonth() + 1).padStart(2, '0')}`;
       const prefix = `SO-HJP-${yearMonth}-`;
@@ -91,7 +132,7 @@ export default function QuotationDetailPage() {
         .like('so_number', `${prefix}%`)
         .order('so_number', { ascending: false })
         .limit(1);
-      
+
       let nextSeq = 1;
       if (lastDoc && lastDoc.length > 0) {
         const lastNum = lastDoc[0].so_number;
@@ -100,21 +141,18 @@ export default function QuotationDetailPage() {
       }
       const newSoNumber = `${prefix}${String(nextSeq).padStart(3, '0')}`;
 
-      // 2. Insert Data ke Tabel sales_orders (Sesuai persis dengan skema SQL kamu)
       const { data: so, error: soErr } = await supabase.from('sales_orders').insert([{
         so_number: newSoNumber,
-        quotation_id: id,            // Relasi ke Quotation ini
-        po_number: poInput.trim(),   // WAJIB ADA (NOT NULL)
+        quotation_id: id,
+        po_number: poInput.trim(),
         customer_id: quotation.customer_id,
         address_id: quotation.address_id,
         grand_total: quotation.grand_total,
-        status: 'Open'
-        // Tidak ada kolom 'notes' di tabel SO kamu, jadi kita tidak masukkan
+        status: 'Open',
       }]).select().single();
 
       if (soErr) throw soErr;
 
-      // 3. Gandakan (Copy-Paste) Semua Item ke sales_order_items
       const itemsToInsert = items.map(i => ({
         so_id: so.id,
         product_id: i.product_id,
@@ -127,8 +165,11 @@ export default function QuotationDetailPage() {
       const { error: itemErr } = await supabase.from('sales_order_items').insert(itemsToInsert);
       if (itemErr) throw itemErr;
 
-      alert(`Sukses! Dokumen Sales Order ${newSoNumber} berhasil diterbitkan dengan Referensi PO: ${poInput.trim()}`);
-      router.push('/dashboard/sales-orders'); // Arahkan ke halaman daftar SO
+      alert(`Sukses! Dokumen Sales Order ${newSoNumber} berhasil diterbitkan.`);
+      
+      // Update state existingSO agar halaman langsung terkunci tanpa perlu refresh
+      setExistingSO({ id: so.id, so_number: newSoNumber });
+      setIsPOModalOpen(false);
       
     } catch (error: any) {
       console.error(error);
@@ -138,205 +179,395 @@ export default function QuotationDetailPage() {
     }
   };
 
-  if (loading) return <div className="p-8 text-center text-gray-500">Menarik data dokumen...</div>;
-  if (!quotation) return <div className="p-8 text-center text-red-500">Dokumen tidak ditemukan.</div>;
+  if (loading) return (
+    <div className="flex flex-col items-center justify-center min-h-[50vh] gap-4">
+      <div className="w-10 h-10 border-4 border-slate-200 border-t-blue-600 rounded-full animate-spin"></div>
+      <p className="text-slate-400 font-bold animate-pulse">Menyiapkan dokumen Quotation...</p>
+    </div>
+  );
+
+  if (!quotation) return (
+    <div className="card-modern max-w-xl mx-auto p-10 text-center mt-10">
+      <h3 className="text-lg font-bold text-rose-600 mb-2">Dokumen Tidak Ditemukan</h3>
+      <p className="text-slate-500 mb-6">Dokumen Quotation yang Anda cari tidak ada atau telah dihapus.</p>
+      <Link href="/dashboard/quotations" className="btn-secondary inline-flex">Kembali ke Daftar</Link>
+    </div>
+  );
+
+  // ── PERUBAHAN: Variabel untuk mengecek apakah dokumen terkunci ──
+  const isLocked = !!existingSO;
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6 print:m-0 print:p-0 print:max-w-none text-black">
+    <div className="w-full max-w-[1200px] mx-auto space-y-6 pb-10 print:m-0 print:p-0 print:space-y-0 print:max-w-none text-black relative">
 
       {/* ── KONTROL UI ── */}
-      <div className="print:hidden flex flex-col md:flex-row justify-between items-center gap-4 bg-white p-4 rounded-xl border shadow-sm">
-        <Link href="/dashboard/quotations" className="text-sm font-bold text-gray-500 hover:text-blue-600">← Kembali</Link>
-        <div className="flex items-center gap-3">
-          <select
-            value={quotation.status}
-            onChange={(e) => handleUpdateStatus(e.target.value)}
-            className={`text-sm font-bold border rounded-md px-3 py-2 outline-none
-              ${quotation.status === 'Draft' ? 'bg-gray-100 text-gray-700' :
-                quotation.status === 'Sent' ? 'bg-blue-100 text-blue-700' :
-                quotation.status === 'Approved' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}
-          >
-            <option value="Draft">Status: Draft</option>
-            <option value="Sent">Status: Dikirim (Sent)</option>
-            <option value="Approved">Status: Disetujui (Approved)</option>
-            <option value="Rejected">Status: Ditolak (Rejected)</option>
-          </select>
-          {quotation.status === 'Approved' && (
-            <button 
-              onClick={handleCreateSO}
-              disabled={isCreatingSO}
-              className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md font-bold text-sm shadow flex items-center gap-2 disabled:bg-green-300 transition-colors"
-            >
-              {isCreatingSO ? 'Memproses...' : '✅ Convert ke Sales Order'}
+      <div className="print:hidden w-full max-w-[210mm] mx-auto card-modern p-5 md:p-6 border-l-4 border-l-blue-500 animate-in fade-in slide-in-from-top-4 duration-500 mb-6">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 w-full md:w-auto">
+            <Link href="/dashboard/quotations" className="inline-flex items-center justify-center p-3 bg-slate-50 hover:bg-slate-100 text-slate-500 rounded-xl transition-colors border border-slate-200 shrink-0">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
+            </Link>
+            <div className="w-full sm:w-auto">
+              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Status Dokumen</span>
+              
+              {/* ── PERUBAHAN: Jika terkunci, tampilkan label saja. Jika belum, tampilkan select dropdown. ── */}
+              {isLocked ? (
+                <div className="bg-slate-100 text-slate-500 border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-black uppercase tracking-wider w-full sm:w-auto text-center sm:text-left flex items-center justify-center sm:justify-start gap-2 cursor-not-allowed">
+                  🔒 Terkunci (SO Terbit)
+                </div>
+              ) : (
+                <select
+                  value={quotation.status}
+                  onChange={(e) => handleUpdateStatus(e.target.value)}
+                  className={`text-xs font-black uppercase tracking-wider border-2 rounded-lg px-3 py-1.5 outline-none transition-colors cursor-pointer w-full sm:w-auto appearance-none text-center sm:text-left
+                    ${quotation.status === 'Draft' ? 'bg-slate-100 text-slate-700 border-slate-200' :
+                      quotation.status === 'Sent' ? 'bg-blue-100 text-blue-700 border-blue-200' :
+                      quotation.status === 'Approved' ? 'bg-emerald-100 text-emerald-700 border-emerald-200' :
+                      'bg-rose-100 text-rose-700 border-rose-200'}`}
+                >
+                  <option value="Draft">Draft (Belum Fix)</option>
+                  <option value="Sent">Dikirim (Sent)</option>
+                  <option value="Approved">Disetujui (Approved)</option>
+                  <option value="Rejected">Ditolak (Rejected)</option>
+                </select>
+              )}
+            </div>
+          </div>
+
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-end gap-3 w-full md:w-auto">
+            <div className="flex items-center gap-2 flex-1 sm:flex-none">
+              
+              {/* ── PERUBAHAN: Jika terkunci, tampilkan tombol Lihat SO. Jika belum, tampilkan Buat SO & Revisi ── */}
+              {isLocked ? (
+                <Link 
+                  href={`/dashboard/sales-orders/${existingSO.id}`} 
+                  className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-slate-800 hover:bg-slate-900 text-white px-4 py-2 rounded-xl font-bold text-sm transition-colors shadow-sm h-[40px]"
+                >
+                  👁️ Lihat Dokumen SO
+                </Link>
+              ) : (
+                <>
+                  {quotation.status === 'Approved' && (
+                    <button
+                      onClick={() => setIsPOModalOpen(true)}
+                      className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl font-bold text-sm transition-colors shadow-emerald-600/30 shadow-lg h-[40px]"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+                      Buat SO
+                    </button>
+                  )}
+                  <Link href={`/dashboard/quotations/${id}/edit`} className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-slate-800 hover:bg-slate-900 text-white px-4 py-2 rounded-xl font-bold text-sm transition-colors shadow-sm h-[40px]">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                    Revisi
+                  </Link>
+                </>
+              )}
+
+            </div>
+            <button onClick={handlePrint} className="w-full sm:w-auto flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl font-bold text-sm transition-colors shadow-sm h-[40px] mt-2 sm:mt-0">
+              🖨️ Cetak PDF
             </button>
-          )}
-          <Link href={`/dashboard/quotations/${id}/edit`} className="bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded-md font-bold text-sm shadow flex items-center gap-2">
-            ✏️ Revisi Dokumen
-          </Link>
-          <button onClick={handlePrint} className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-md font-bold text-sm shadow flex items-center gap-2">
-            🖨️ Cetak / Simpan PDF
-          </button>
+          </div>
+
         </div>
       </div>
 
-      {/* ── KERTAS DOKUMEN A4 ── */}
-      <div className="bg-white rounded-xl shadow-sm print:shadow-none print:rounded-none print:p-0" style={{ padding: '40px 48px', fontFamily: "'Noto Sans', Arial, sans-serif", fontSize: 11 }}>
-        
-        {/* HEADER */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
-          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-            <div style={{ width: 72, height: 72, flexShrink: 0 }}>
-              <img src="/logo.png" alt="CV. HJP Logo" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+      {/* ── WRAPPER PDF (KERTAS A4) ── */}
+      <div className="w-full overflow-x-auto pb-8 custom-scrollbar print:overflow-visible print:pb-0 relative">
+        <div
+          className="bg-white shadow-xl border border-slate-200 print:shadow-none print:border-none mx-auto min-h-[297mm] print:min-h-0"
+          style={{
+            width: '210mm',
+            padding: '20mm',
+            boxSizing: 'border-box',
+            fontFamily: "'Noto Sans', Arial, sans-serif",
+            fontSize: 11,
+          }}
+        >
+
+          {/* ── HEADER: logo + nama perusahaan + alamat (kiri saja) ── */}
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 8, marginBottom: 2 }}>
+            <div style={{ width: 100, height: 65, flexShrink: 0 }}>
+              <img
+                src="/logo.png"
+                alt="CV. HJP Logo"
+                style={{ width: '100%', height: '100%', objectFit: 'contain', objectPosition: 'left' }}
+              />
             </div>
             <div>
-              <div style={{ fontSize: 12, fontWeight: 700, color: '#1a3a6b', textTransform: 'uppercase', marginBottom: 2 }}>CV HARMONISINDO JAYA PART</div>
-              <div style={{ fontSize: 10, color: '#333', lineHeight: 1.6 }}>
-                SOHO CAPITAL lantai. 32 unit 7 Jl. Letjen S. Parman<br />Kav. 28, Kelurahan Tanjung Duren Selatan<br />Kec. Grogol Petamburan, Jakarta Barat
+              <div style={{ fontSize: 12, fontWeight: 700, color: '#1a1a1a', textTransform: 'uppercase', marginBottom: 3 }}>
+                CV HARMONISINDO JAYA PART
+              </div>
+              <div style={{ fontSize: 10, color: '#444', lineHeight: 1.65 }}>
+                SOHO CAPITAL lantai. 32 unit 7 Jl. Letjen S. Parman<br />
+                Kav. 28, Kelurahan Tanjung Duren Selatan<br />
+                Kec. Grogol Petamburan, Jakarta Barat
               </div>
             </div>
           </div>
-          <div style={{ background: '#1a3a6b', color: '#fff', padding: '10px 28px', borderRadius: 4, alignSelf: 'center' }}>
-            <span style={{ fontSize: 18, fontWeight: 700, letterSpacing: 1 }}>Sales Quotation</span>
+
+          {/* ── BANNER SALES QUOTATION (full width) ── */}
+          <div style={{
+            background: '#487bc8',
+            color: '#000000',
+            textAlign: 'center',
+            padding: '5px 0',
+            marginBottom: 8,
+          }}>
+            <span style={{ fontSize: 17, fontWeight: 700, letterSpacing: 1 }}>Sales Quotation</span>
           </div>
-        </div>
 
-        <hr style={{ border: 'none', borderTop: '1px solid #aaa', margin: '12px 0' }} />
+          {/* ── INFO (2 kolom) ── */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 24px', marginBottom: 16 }}>
 
-        {/* INFO */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 32px', marginBottom: 14 }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <tbody>
-              <tr><td style={tdLabel}>TO</td><td style={tdColon}>:</td><td style={{ ...tdValue, fontWeight: 700 }}>{customer?.company_name}</td></tr>
-              <tr><td style={{ ...tdLabel, verticalAlign: 'top' }}>Address</td><td style={{ ...tdColon, verticalAlign: 'top' }}>:</td><td style={{ ...tdValue, whiteSpace: 'pre-wrap' }}>{address?.complete_address}</td></tr>
-              <tr><td style={{ ...tdLabel, paddingTop: 6 }}>Telp</td><td style={{ ...tdColon, paddingTop: 6 }}>:</td><td style={{ ...tdValue, paddingTop: 6 }}>({address?.pic_phone || '-'})</td></tr>
-              <tr><td style={tdLabel}>Fax</td><td style={tdColon}>:</td><td style={tdValue}>-</td></tr>
-            </tbody>
-          </table>
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <tbody>
-              <tr><td style={tdLabel}>No</td><td style={tdColon}>:</td><td style={{ ...tdValue, fontWeight: 700 }}>{quotation.quotation_number}</td></tr>
-              <tr><td style={tdLabel}>MR / Ref No</td><td style={tdColon}>:</td><td style={{ ...tdValue, fontWeight: 700, color: '#1a3a6b' }}>{quotation.mr_number}</td></tr>
-              <tr><td style={tdLabel}>Date</td><td style={tdColon}>:</td><td style={tdValue}>{new Date(quotation.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' })}</td></tr>
-              <tr><td style={tdLabel}>Validity</td><td style={tdColon}>:</td><td style={tdValue}>{getValidityDays()} Days</td></tr>
-              <tr><td style={{ ...tdLabel, paddingTop: 6 }}>Email</td><td style={{ ...tdColon, paddingTop: 6 }}>:</td><td style={{ ...tdValue, paddingTop: 6 }}>{customer?.email || '-'}</td></tr>
-              <tr><td style={tdLabel}>Attn</td><td style={tdColon}>:</td><td style={tdValue}>{address?.pic_name || '-'}</td></tr>
-            </tbody>
-          </table>
-        </div>
+            {/* Kiri: TO / Address / Telp / Email / Fax */}
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <tbody>
+                <tr>
+                  <td style={tdLabel}>TO</td>
+                  <td style={tdColon}>:</td>
+                  <td style={{ ...tdValue, fontWeight: 700, textTransform: 'uppercase' }}>
+                    {customer?.company_name}
+                  </td>
+                </tr>
+                <tr>
+                  <td style={{ ...tdLabel, verticalAlign: 'top', paddingTop: 2 }}>Address</td>
+                  <td style={{ ...tdColon, verticalAlign: 'top', paddingTop: 2 }}>:</td>
+                  <td style={{ ...tdValue, whiteSpace: 'pre-wrap', lineHeight: 1.6, paddingTop: 2 }}>
+                    {address?.complete_address}
+                  </td>
+                </tr>
+                <tr>
+                  <td style={{ ...tdLabel, paddingTop: 8 }}>Telp</td>
+                  <td style={{ ...tdColon, paddingTop: 8 }}>:</td>
+                  <td style={{ ...tdValue, paddingTop: 8 }}>
+                    {address?.pic_phone ? `(${address.pic_phone})` : ''}
+                  </td>
+                </tr>
+                <tr>
+                  <td style={tdLabel}>Email</td>
+                  <td style={tdColon}>:</td>
+                  <td style={tdValue}>{customer?.email || ''}</td>
+                </tr>
+                <tr>
+                  <td style={tdLabel}>Fax</td>
+                  <td style={tdColon}>:</td>
+                  <td style={tdValue}></td>
+                </tr>
+              </tbody>
+            </table>
 
-        {/* TABEL BARANG */}
-        <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 16, tableLayout: 'fixed' }}>
-          <colgroup>
-            <col style={{ width: 28 }} /> 
-            <col style={{ width: 95 }} />  
-            <col />                        
-            <col style={{ width: 28 }} />  
-            <col style={{ width: 34 }} />  
-            <col style={{ width: 105 }} /> 
-            <col style={{ width: 35 }} />  
-            <col style={{ width: 105 }} /> 
-            <col style={{ width: 65 }} /> 
-          </colgroup>
-          <thead>
-            <tr>
-              <th style={thStyle}>No</th>
-              <th style={thStyle}>Part Number</th>
-              <th style={thStyle}>Description</th>
-              <th style={thStyle} colSpan={2}>Qty</th>
-              <th style={thStyle}>Unit Price</th>
-              <th style={thStyle}>Disc</th>
-              <th style={thStyle}>Amount (IDR)</th>
-              <th style={thStyle}>Remark</th>
-            </tr>
-          </thead>
-          <tbody>
-            {items.map((item, index) => (
-              <tr key={item.id} style={{ pageBreakInside: 'avoid' }}>
-                <td style={{ ...tdItem, textAlign: 'center' }}>{index + 1}</td>
-                <td style={{ ...tdItem, fontWeight: 700 }}>{item.products?.part_code}</td>
-                <td style={tdItem}>
-                  <div style={{ lineHeight: 1.4 }}>{item.products?.part_name}</div>
-                </td>
-                <td style={{ ...tdItem, textAlign: 'center' }}>{item.qty}</td>
-                <td style={{ ...tdItem, textAlign: 'center' }}>{item.products?.unit}</td>
-                
-                {/* Format Accounting (Flex Space-Between) */}
-                <td style={{ ...tdItem, whiteSpace: 'nowrap' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span>Rp.</span>
-                    <span>{item.unit_price?.toLocaleString('id-ID')}</span>
-                  </div>
-                </td>
-                
-                {/* Diskon diubah jadi Persentase (%) */}
-                <td style={{ ...tdItem, textAlign: 'center' }}>
-                  {item.discount > 0 ? `${item.discount}%` : '-'}
-                </td>
-                
-                {/* Format Accounting (Flex Space-Between) */}
-                <td style={{ ...tdItem, whiteSpace: 'nowrap', fontWeight: 'bold' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span>Rp.</span>
-                    <span>{item.total_price?.toLocaleString('id-ID')}</span>
-                  </div>
-                </td>
-                
-                <td style={{ ...tdItem, textAlign: 'center' }}>
-                  {item.products?.remark || '-'}
-                </td>
+            {/* Kanan: No / MR No / Date / Validity / Attn */}
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <tbody>
+                <tr>
+                  <td style={tdLabel}>No</td>
+                  <td style={tdColon}>:</td>
+                  <td style={{ ...tdValue, fontWeight: 700 }}>{quotation.quotation_number}</td>
+                </tr>
+                <tr>
+                  <td style={tdLabel}>MR No</td>
+                  <td style={tdColon}>:</td>
+                  <td style={{ ...tdValue, fontWeight: 500 }}>{quotation.mr_number || '-'}</td>
+                </tr>
+                <tr>
+                  <td style={tdLabel}>Date</td>
+                  <td style={tdColon}>:</td>
+                  <td style={tdValue}>
+                    {new Date(quotation.created_at).toLocaleDateString('id-ID', {
+                      day: '2-digit',
+                      month: 'short',
+                      year: 'numeric',
+                    }).replace(/ /g, '-')}
+                  </td>
+                </tr>
+                <tr>
+                  <td style={tdLabel}>Validity</td>
+                  <td style={tdColon}>:</td>
+                  <td style={tdValue}>{getValidityDays()} Days</td>
+                </tr>
+                <tr>
+                  <td style={{ ...tdLabel, paddingTop: 8 }}>Attn</td>
+                  <td style={{ ...tdColon, paddingTop: 8 }}>:</td>
+                  <td style={{ ...tdValue, paddingTop: 8 }}>{address?.pic_name || ''}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          {/* ── TABEL BARANG ── */}
+          <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 18, tableLayout: 'fixed' }}>
+            <colgroup>
+              <col style={{ width: 26 }} />   {/* No */}
+              <col style={{ width: 82 }} />   {/* Part Number */}
+              <col />                          {/* Description */}
+              <col style={{ width: 26 }} />   {/* Qty */}
+              <col style={{ width: 32 }} />   {/* Unit */}
+              <col style={{ width: 98 }} />   {/* Unit Price */}
+              <col style={{ width: 30 }} />   {/* Disc */}
+              <col style={{ width: 98 }} />   {/* Amount */}
+              <col style={{ width: 58 }} />   {/* Remark */}
+            </colgroup>
+            <thead>
+              <tr>
+                <th style={thStyle}>No</th>
+                <th style={thStyle}>Part Number</th>
+                <th style={thStyle}>Description</th>
+                <th style={thStyle} colSpan={2}>Qty</th>
+                <th style={thStyle}>Unit Price</th>
+                <th style={thStyle}>Disc</th>
+                <th style={thStyle}>Amount (IDR)</th>
+                <th style={thStyle}>Remark</th>
               </tr>
-            ))}
+            </thead>
+            <tbody>
+              {items.map((item, index) => (
+                <tr key={item.id} style={{ pageBreakInside: 'avoid' }}>
+                  <td style={{ ...tdItem, textAlign: 'center' }}>{index + 1}</td>
+                  <td style={{ ...tdItem, fontWeight: 200 }}>{item.products?.part_code}</td>
+                  <td style={tdItem}>
+                    <div style={{ lineHeight: 1.4 }}>{item.products?.part_name}</div>
+                  </td>
+                  <td style={{ ...tdItem, textAlign: 'center' }}>{item.qty}</td>
+                  <td style={{ ...tdItem, textAlign: 'center' }}>{item.products?.unit}</td>
+                  <td style={{ ...tdItem, whiteSpace: 'nowrap' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span>Rp.</span>
+                      <span>{item.unit_price?.toLocaleString('id-ID')}</span>
+                    </div>
+                  </td>
+                  <td style={{ ...tdItem, textAlign: 'center' }}>
+                    {item.discount > 0 ? `${item.discount}%` : ''}
+                  </td>
+                  <td style={{ ...tdItem, whiteSpace: 'nowrap', fontWeight: 200 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span>Rp.</span>
+                      <span>{item.total_price?.toLocaleString('id-ID')}</span>
+                    </div>
+                  </td>
+                  <td style={{ ...tdItem, textAlign: 'center' }}>
+                    {item.products?.remark || ''}
+                  </td>
+                </tr>
+              ))}
 
-            {/* Baris Total */}
-            <tr style={{ pageBreakInside: 'avoid', background: '#f5f5f5' }}>
-              <td colSpan={7} style={{ ...tdItem, textAlign: 'right', fontWeight: 700 }}>Total</td>
-              <td style={{ ...tdItem, fontWeight: 700, whiteSpace: 'nowrap' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span>Rp.</span>
-                  <span>{quotation.grand_total?.toLocaleString('id-ID')}</span>
-                </div>
-              </td>
-              <td style={tdItem}></td>
-            </tr>
-          </tbody>
-        </table>
+              {/* Baris kosong pengisi agar tabel terlihat penuh */}
+              {Array.from({ length: Math.max(0, 10 - items.length) }).map((_, i) => (
+                <tr key={`empty-${i}`}>
+                  {[...Array(9)].map((_, j) => (
+                    <td key={j} style={{ ...tdItem, height: 22 }} />
+                  ))}
+                </tr>
+              ))}
 
-        {/* CATATAN (Dinamis dari Notes) */}
-        <div style={{ marginBottom: 24, pageBreakInside: 'avoid' }}>
-          <p style={{ margin: '2px 0', fontWeight: 700, textDecoration: 'underline' }}>NOTE :</p>
-          <div style={{ whiteSpace: 'pre-wrap', margin: '4px 0', fontSize: 11, lineHeight: 1.4 }}>
-            {quotation.notes ? quotation.notes : "Ready Stock\nFranco Site"}
-          </div>
-          <p style={{ margin: '8px 0 2px', fontWeight: 700, color: '#b00000', fontStyle: 'italic' }}>
-            All payment to Bank MANDIRI No. 1560024959530 a.n CV HARMONISINDO JAYA PART
-          </p>
-        </div>
+              {/* ── BARIS TOTAL ── */}
+              <tr style={{ pageBreakInside: 'avoid' }}>
+                <td
+                  colSpan={7}
+                  style={{
+                    ...tdItem,
+                    textAlign: 'right',
+                    fontWeight: 700,
+                    border: 'none',
+                    borderTop: '1px solid #bbb',
+                  }}
+                >
+                  Total
+                </td>
+                <td style={{ ...tdItem, fontWeight: 700, whiteSpace: 'nowrap' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span>Rp.</span>
+                    <span>{quotation.grand_total?.toLocaleString('id-ID')}</span>
+                  </div>
+                </td>
+                <td style={{ border: 'none', borderTop: '1px solid #bbb' }} />
+              </tr>
+            </tbody>
+          </table>
 
-        {/* TANDA TANGAN */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', pageBreakInside: 'avoid' }}>
-          <div>
-            <p style={{ margin: 0, fontSize: 11 }}>Quote by,</p>
-            <div style={{ height: 60 }} />
-            <p style={{ margin: 0, fontSize: 11, fontWeight: 700, textTransform: 'uppercase', textDecoration: 'underline' }}>Fatin</p>
-          </div>
-          <div style={{ textAlign: 'right' }}>
-            <p style={{ margin: 0, fontSize: 11 }}>Approved by,</p>
-            <div style={{ height: 60 }} />
-            <p style={{ margin: 0, fontSize: 11, fontWeight: 700, textTransform: 'uppercase', textDecoration: 'underline' }}>
-              {address?.pic_name || '................................'}
+          {/* ── CATATAN ── */}
+          <div style={{ marginBottom: 32, pageBreakInside: 'avoid' }}>
+            <p style={{ margin: '0 0 4px', fontWeight: 700, textDecoration: 'underline', fontSize: 11 }}>
+              NOTE :
+            </p>
+            <div style={{ whiteSpace: 'pre-wrap', margin: '0 0 10px', fontSize: 11, lineHeight: 1.6 }}>
+              {quotation.notes ? quotation.notes : 'Ready Stock\nFranco Site'}
+            </div>
+            <p style={{ margin: 0, fontWeight: 700, color: '#b00000', fontStyle: 'italic', fontSize: 11 }}>
+              All payment to Bank MANDIRI No. 1560024959530 a.n CV HARMONISINDO JAYA PART
             </p>
           </div>
-        </div>
 
+          {/* ── TANDA TANGAN ── */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', pageBreakInside: 'avoid' }}>
+            <div>
+              <p style={{ margin: 0, fontSize: 11 }}>Quote by,</p>
+              <div style={{ height: 64 }} />
+              <p style={{ margin: 0, fontSize: 11, fontWeight: 700, textTransform: 'uppercase', textDecoration: 'underline' }}>
+                Fatin
+              </p>
+            </div>
+            <div style={{ textAlign: 'right' }}>
+              <p style={{ margin: 0, fontSize: 11 }}>Approved by,</p>
+              <div style={{ height: 64 }} />
+              <p style={{ margin: 0, fontSize: 11, fontWeight: 700, textTransform: 'uppercase', textDecoration: 'underline' }}>
+                {address?.pic_name || '................................'}
+              </p>
+            </div>
+          </div>
+
+        </div>
       </div>
+      {/* ── AKHIR WRAPPER PDF ── */}
+
+      {/* ── MODAL CONVERT KE SALES ORDER ── */}
+      {isPOModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex justify-center p-4 print:hidden items-end sm:items-center sm:p-6 overflow-y-auto">
+          <form onSubmit={handleCreateSO} className="bg-white rounded-t-2xl sm:rounded-2xl w-full max-w-md shadow-2xl flex flex-col my-auto animate-in slide-in-from-bottom-10 sm:scale-in-center duration-300">
+
+            <div className="shrink-0 bg-blue-600 p-5 text-white flex justify-between items-center rounded-t-2xl">
+              <div>
+                <h2 className="text-xl font-black">Convert ke Sales Order</h2>
+                <p className="text-blue-100 text-xs font-mono mt-0.5">{quotation.quotation_number}</p>
+              </div>
+              <button type="button" onClick={() => setIsPOModalOpen(false)} className="text-blue-200 hover:text-white bg-blue-700/50 hover:bg-blue-700 p-2 rounded-lg transition-colors">
+                ✕
+              </button>
+            </div>
+
+            <div className="p-6 space-y-5">
+              <div className="bg-blue-50 text-blue-800 p-4 rounded-xl text-center border border-blue-200 shadow-inner">
+                <span className="text-xs font-bold block mb-1">Quotation ini akan diubah menjadi Dokumen Sales Order resmi.</span>
+              </div>
+              <div>
+                <label className="label-modern text-blue-900">Nomor PO (Purchase Order) Klien *</label>
+                <div className="mt-1 relative">
+                  <span className="absolute left-4 top-3 font-bold text-slate-400">PO-</span>
+                  <input
+                    type="text"
+                    required
+                    autoFocus
+                    placeholder="Misal: 025/PAMA/2026"
+                    value={poInput}
+                    onChange={(e) => setPoInput(e.target.value)}
+                    className="input-modern pl-12 text-sm font-bold text-blue-900 focus:border-blue-500 focus:ring-blue-500/20"
+                  />
+                </div>
+                <p className="text-[10px] text-slate-500 mt-2">* Nomor PO ini akan menjadi referensi utama di dokumen Sales Order dan Invoice nantinya.</p>
+              </div>
+            </div>
+
+            <div className="shrink-0 p-5 bg-slate-50 border-t border-slate-100 flex justify-end gap-3 rounded-b-2xl">
+              <button type="button" onClick={() => setIsPOModalOpen(false)} className="btn-secondary">Batal</button>
+              <button type="submit" disabled={isCreatingSO} className="flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-bold px-6 py-2.5 rounded-xl shadow-sm disabled:bg-blue-300 transition-colors">
+                {isCreatingSO ? 'Memproses...' : 'Buat Sales Order'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
     </div>
   );
 }
-
-/* ─── Style helpers ─── */
-const tdBase: React.CSSProperties = { padding: '2px 0', verticalAlign: 'top', fontSize: 11 };
-const tdLabel: React.CSSProperties = { ...tdBase, fontWeight: 700, width: 52, whiteSpace: 'nowrap' };
-const tdColon: React.CSSProperties = { ...tdBase, width: 8 };
-const tdValue: React.CSSProperties = { ...tdBase };
-const thStyle: React.CSSProperties = { border: '1px solid #444', padding: '5px 6px', textAlign: 'center', background: '#f5f5f5', fontWeight: 700, fontSize: 11 };
-const tdItem: React.CSSProperties = { border: '1px solid #444', padding: '5px 6px', fontSize: 11, verticalAlign: 'middle' };

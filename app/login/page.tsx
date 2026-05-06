@@ -11,7 +11,6 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
-  // 2. Inisialisasi Supabase client di dalam komponen
   const supabase = createClientComponentClient();
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -25,17 +24,14 @@ export default function LoginPage() {
         password,
       });
 
-      if (error) {
-        throw new Error(error.message);
-      }
+      if (error) throw new Error(error.message);
 
-      // 3. WAJIB: Refresh router agar Server (Middleware) mendeteksi cookie baru
+      // WAJIB: Refresh router agar Server (Middleware) mendeteksi cookie baru
       router.refresh();
-      // 4. Arahkan pengguna ke halaman dasbor
+      // Arahkan ke pintu masuk utama
       router.push('/dashboard');
       
     } catch (err: any) {
-      // Ubah pesan error default Supabase (bahasa Inggris) menjadi lebih ramah
       if (err.message === 'Invalid login credentials') {
         setError('Email atau kata sandi salah.');
       } else {

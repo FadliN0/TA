@@ -6,18 +6,19 @@ import { createStaffAccount } from './actions'; // Memanggil Server Action
 export default function UserManagementPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [role, setRole] = useState('Admin');
+  // Ubah default ke 'admin' huruf kecil
+  const [role, setRole] = useState('admin'); 
   const [loading, setLoading] = useState(false);
 
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
 
-    // Memanggil fungsi dari server
-    const result = await createStaffAccount(email, password);
+    // Memanggil fungsi dari server, PASTIKAN MENGIRIM ROLE JUGA
+    const result = await createStaffAccount(email, password, role);
 
     if (result.success) {
-      alert(`Berhasil! Akun ${email} siap digunakan oleh Bos / Admin baru.`);
+      alert(`Berhasil! Akun ${email} siap digunakan dengan hak akses ${role.toUpperCase()}.`);
       setEmail('');
       setPassword('');
     } else {
@@ -65,10 +66,10 @@ export default function UserManagementPage() {
               value={role} onChange={(e) => setRole(e.target.value)}
               className="w-full border-2 border-gray-200 p-3 rounded-xl mt-1 outline-none focus:border-blue-500 transition-colors font-bold text-gray-800"
             >
-              <option value="Admin">Admin Operasional (Bisa Edit Data)</option>
-              <option value="Direktur">Direktur / Bos (Hanya Lihat Laporan)</option>
+              {/* UBAH VALUE MENJADI admin DAN atasan */}
+              <option value="admin">Admin Operasional (Bisa Input/Edit Data)</option>
+              <option value="atasan">Direktur / Atasan (Hanya Pantau Laporan & Tracking)</option>
             </select>
-            <p className="text-[10px] text-gray-400 mt-1">*Catatan: Pengaturan pembatasan layar berdasarkan Role dapat disempurnakan di tahap selanjutnya.</p>
           </div>
 
           <div className="pt-4 flex justify-end">
