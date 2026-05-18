@@ -59,13 +59,24 @@ export default function MasterReportDetailPage() {
   const fetchDetail = async () => {
     setLoading(true);
     try {
-      const { data: base, error } = await supabase
-        .from('v_transaction_lifecycle').select('*').eq('so_id', id).single();
-      if (error) throw error;
+      // 1. Tarik Data Base (SO, Customer, Quotation) secara langsung
+      const { data: soData, error: soError } = await supabase
+        .from('sales_orders')
+        .select(`
+          id, so_number, po_number, created_at, grand_total, customer_id, address_id,
+          customers ( company_name ),
+          quotations ( quotation_number )
+        `)
+        .eq('id', id)
+        .single();
 
-      const { data: soData } = await supabase
-        .from('sales_orders').select('customer_id, address_id').eq('id', id).single();
+      if (soError) throw soError;
 
+      // Amankan pembacaan relasi (jaga-jaga jika Supabase mengembalikannya dalam bentuk Array)
+      const qoData = Array.isArray(soData.quotations) ? soData.quotations[0] : soData.quotations;
+      const custData = Array.isArray(soData.customers) ? soData.customers[0] : soData.customers;
+
+      // 2. Tarik Data Alamat (Billing & Shipping)
       let billingAddress = null, shippingAddress = null;
       if (soData?.customer_id) {
         const { data: addrs } = await supabase
@@ -74,23 +85,38 @@ export default function MasterReportDetailPage() {
           billingAddress = addrs.find((a: any) => a.address_type?.toLowerCase() === 'billing') || addrs[0];
         }
       }
+      
       if (soData?.address_id) {
+        // PERBAIKAN: Gunakan maybeSingle() agar tidak crash jika alamat terhapus
         const { data: ship } = await supabase
-          .from('customer_addresses').select('*').eq('id', soData.address_id).single();
+          .from('customer_addresses').select('*').eq('id', soData.address_id).maybeSingle();
         if (ship) shippingAddress = ship;
       }
 
+      // 3. Tarik Items
       const { data: items } = await supabase
         .from('sales_order_items')
         .select('qty, unit_price, discount, total_price, products(part_code, part_name, unit)')
         .eq('so_id', id);
 
+      // Amankan produk jika bentuknya array
+      const formattedItems = (items || []).map((it: any) => ({
+        ...it,
+        products: Array.isArray(it.products) ? it.products[0] : it.products
+      }));
+
+      // 4. Tarik Delivery Orders (DO)
       const { data: doList } = await supabase
         .from('delivery_orders').select('do_number, delivery_date, status').eq('so_id', id);
 
-      const { data: inv } = await supabase
-        .from('invoices').select('id, invoice_number, due_date, status, grand_total').eq('so_id', id).single();
+      // 5. Tarik Invoice 
+      // PERBAIKAN: Tarik sebagai array, jangan pakai .single() karena SO bisa saja belum punya Invoice
+      const { data: invList } = await supabase
+        .from('invoices').select('id, invoice_number, due_date, status, grand_total, amount_paid').eq('so_id', id);
+      
+      const inv = invList && invList.length > 0 ? invList[invList.length - 1] : null;
 
+      // 6. Tarik Riwayat Pembayaran (jika ada invoice)
       let payments: any[] = [];
       if (inv?.id) {
         const { data: p } = await supabase
@@ -98,9 +124,27 @@ export default function MasterReportDetailPage() {
         payments = p || [];
       }
 
-      setData({ ...base, items: items || [], deliveryOrders: doList || [], invoice: inv || null, payments, billingAddress, shippingAddress });
+      // 7. Rangkai semua data ke dalam format yang dibaca oleh UI React Anda
+      setData({
+        so_number: soData.so_number,
+        po_number: soData.po_number,
+        so_date: soData.created_at,
+        company_name: custData?.company_name || '-',
+        quotation_number: qoData?.quotation_number || null,
+        total_order_value: soData.grand_total,
+        payment_status: inv ? inv.status : 'Uninvoiced',
+        delivery_status: doList && doList.length > 0 ? doList[doList.length - 1].status : 'Open',
+        total_paid_amount: inv ? (inv.amount_paid || 0) : 0,
+        items: formattedItems,
+        deliveryOrders: doList || [],
+        invoice: inv || null,
+        payments,
+        billingAddress,
+        shippingAddress
+      });
+
     } catch (e) {
-      console.error(e);
+      console.error("Fetch Detail Error:", e);
       alert('Data laporan tidak ditemukan.');
     } finally {
       setLoading(false);

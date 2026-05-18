@@ -41,7 +41,12 @@ export default function SmartPasteProduct() {
     setIsSaving(true);
 
     try {
-      const { error } = await supabase.from('products').insert(parsedData);
+      const { error } = await supabase
+      .from('products')
+      .upsert(parsedData, {
+        onConflict: 'part_code', 
+        ignoreDuplicates: false,
+      });
       
       if (error) {
         if (error.code === '23505') {
@@ -50,7 +55,10 @@ export default function SmartPasteProduct() {
         throw error;
       }
 
-      alert(`Mantap! ${parsedData.length} produk berhasil ditambahkan.`);
+      alert(
+      `Mantap! ${parsedData.length} produk berhasil disimpan.\n` +
+      `(Produk baru ditambahkan, produk lama dengan Part Code sama diperbarui)`
+      );
       setIsOpen(false);
       setPastedText('');
       setParsedData([]);
@@ -89,7 +97,7 @@ export default function SmartPasteProduct() {
               disabled={parsedData.length === 0 || isSaving} 
               className="flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-5 py-2.5 rounded-xl shadow-sm shadow-emerald-200 transition-all active:scale-95 disabled:opacity-70 disabled:cursor-not-allowed disabled:shadow-none"
             >
-              {isSaving ? 'Menyimpan...' : `Simpan ${parsedData.length} Produk`}
+              {isSaving ? 'Menyimpan...' : `Simpan / Update ${parsedData.length} Produk`}
             </button>
           </>
         }

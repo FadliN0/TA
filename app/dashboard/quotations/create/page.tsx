@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
+import { useToast } from '@/components/ui/Alert';
 
 export default function CreateQuotationPage() {
   const router = useRouter();
@@ -22,8 +23,37 @@ export default function CreateQuotationPage() {
   const [notes, setNotes] = useState('Ready Stock\nFranco Site');
   
   const [items, setItems] = useState([
-    { product_id: '', part_code: '', part_name: '', unit: '', qty: 1, unit_price: 0, discount: 0, remark: '' }
+    { product_id: '', part_code: '', part_name: '', unit: '', qty: 1, unit_price: 0, discount: 0, remark: '', _db_price: 0, _db_remark: '' }
   ]);
+
+  const toast = useToast();
+
+  // ── Simpan harga & remark asli dari DB saat produk dipilih ─────────────────
+  // (untuk cek apakah user benar-benar mengubahnya)
+  const updateProductField = async (
+    productId: string,
+    field: 'price' | 'remark',
+    value: number | string
+  ) => {
+    if (!productId) return;
+    const { error } = await supabase
+      .from('products')
+      .update({ [field]: value })
+      .eq('id', productId);
+
+    if (error) {
+      toast.error(`Gagal memperbarui ${field === 'price' ? 'harga' : 'keterangan'} produk`);
+    } else {
+      toast.success(
+        `${field === 'price' ? 'Harga' : 'Keterangan'} produk diperbarui di master data`,
+        'Sinkronisasi Produk'
+      );
+      // Refresh productsList lokal agar konsisten
+      setProductsList(prev =>
+        prev.map(p => p.id === productId ? { ...p, [field]: value } : p)
+      );
+    }
+  };
 
   useEffect(() => {
     const initializePage = async () => {
@@ -85,7 +115,9 @@ export default function CreateQuotationPage() {
         part_name: prod.part_name,
         unit: prod.unit,
         unit_price: prod.price,
-        remark: prod.remark 
+        remark: prod.remark,
+        _db_price: prod.price, // Simpan harga asli untuk cek perubahan
+        _db_remark: prod.remark // Simpan remark asli untuk cek perubahan
       };
       setItems(newItems);
     }
@@ -116,24 +148,11 @@ export default function CreateQuotationPage() {
     }
 
     try {
-      const { data: quote, error: qErr } = await supabase.from('quotations').insert([{
-        quotation_number: quotationNumber,
-        customer_id: selectedCustomerId,
-        address_id: selectedAddressId,
-        valid_until: validUntil,
-        mr_number: mrNumber,
-        grand_total: grandTotal,
-        notes: notes,
-        status: 'Draft'
-      }]).select().single();
-
-      if (qErr) throw qErr;
-
-      const itemsToInsert = items.map(i => {
+      // 1. Siapkan payload items untuk dikirim sebagai JSON ke Stored Procedure
+      const itemsPayload = items.map(i => {
         const lineTotal = i.qty * i.unit_price;
         const discountAmount = lineTotal * ((i.discount || 0) / 100);
         return {
-          quotation_id: quote.id,
           product_id: i.product_id,
           qty: i.qty,
           unit_price: i.unit_price,
@@ -142,12 +161,27 @@ export default function CreateQuotationPage() {
         };
       });
 
-      const { error: iErr } = await supabase.from('quotation_items').insert(itemsToInsert);
-      if (iErr) throw iErr;
+      // 2. Panggil RPC Supabase untuk eksekusi transaksi atomik (Header + Items)
+      const { data, error: rpcError } = await supabase.rpc('create_quotation_transaction', {
+        p_quotation_number: quotationNumber,
+        p_customer_id: selectedCustomerId,
+        p_address_id: selectedAddressId,
+        p_valid_until: validUntil,
+        p_mr_number: mrNumber || null, // Kirim null jika kosong agar rapi di DB
+        p_grand_total: grandTotal,
+        p_notes: notes || null,
+        p_items: itemsPayload
+      });
 
+      if (rpcError) throw rpcError;
+
+      // Berhasil disimpan!
+      toast.success('Quotation berhasil dibuat!');
       router.push('/dashboard/quotations');
+      
     } catch (err: any) {
-      setError(err.message);
+      console.error("Error Transaction:", err);
+      setError(err.message || 'Terjadi kesalahan sistem saat menyimpan dokumen.');
     } finally {
       setIsLoading(false);
     }
@@ -230,12 +264,13 @@ export default function CreateQuotationPage() {
           <div className="space-y-4">
             {/* Header Tabel Virtual (Hanya Desktop) */}
             <div className="hidden md:grid grid-cols-12 gap-3 px-4 text-[10px] font-black text-slate-400 uppercase tracking-wider">
-              <div className="col-span-3">Pilih Part Code</div>
-              <div className="col-span-3">Deskripsi (Otomatis)</div>
+              <div className="col-span-2">Pilih Part Code</div>
+              <div className="col-span-2">Deskripsi</div>
               <div className="col-span-1 text-center">Qty</div>
               <div className="col-span-2 text-right">Harga Satuan (Rp)</div>
               <div className="col-span-1 text-center">Disc %</div>
               <div className="col-span-1 text-right">Total</div>
+              <div className="col-span-2">Keterangan</div>
               <div className="col-span-1 text-center">Aksi</div>
             </div>
 
@@ -248,7 +283,7 @@ export default function CreateQuotationPage() {
                 <div key={idx} className="grid grid-cols-1 md:grid-cols-12 gap-3 md:items-center bg-white md:bg-slate-50/50 p-4 rounded-xl border border-slate-200 relative group transition-colors hover:border-blue-200">
                   
                   {/* Part Code */}
-                  <div className="md:col-span-3">
+                  <div className="md:col-span-2">
                     <label className="md:hidden label-modern">Part Code</label>
                     <select required value={item.product_id} onChange={e => handleProductSelect(idx, e.target.value)} className="input-modern py-2 font-mono text-xs">
                       <option value="">-- Pilih Barang --</option>
@@ -257,7 +292,7 @@ export default function CreateQuotationPage() {
                   </div>
                   
                   {/* Deskripsi Barang */}
-                  <div className="md:col-span-3">
+                  <div className="md:col-span-2">
                     <label className="md:hidden label-modern">Nama Part</label>
                     <input type="text" readOnly value={item.part_name} placeholder="Otomatis terisi..." className="input-modern py-2 text-xs bg-slate-100 text-slate-500 cursor-not-allowed" />
                   </div>
@@ -270,7 +305,20 @@ export default function CreateQuotationPage() {
                     </div>
                     <div className="md:col-span-2">
                       <label className="md:hidden label-modern">Harga Satuan (Rp)</label>
-                      <input type="number" value={item.unit_price} onChange={e => updateItemField(idx, 'unit_price', parseInt(e.target.value) || 0)} className="input-modern py-2 text-right text-xs" />
+                      <input 
+                        type="number" 
+                        value={item.unit_price} 
+                        onChange={e => updateItemField(idx, 'unit_price', parseInt(e.target.value) || 0)} 
+                        onBlur={(e) => {
+                          const val = parseInt(e.target.value) || 0;
+                          // Update ke DB hanya jika nilainya berubah dari aslinya
+                          if (item.product_id && val !== item._db_price) {
+                            updateProductField(item.product_id, 'price', val);
+                            updateItemField(idx, '_db_price', val); // update tracking
+                          }
+                        }}
+                        className="input-modern py-2 text-right text-xs" 
+                      />
                     </div>
                   </div>
 
@@ -288,6 +336,25 @@ export default function CreateQuotationPage() {
                     </div>
                   </div>
 
+                  {/* Remark / Keterangan */}
+                  <div className="md:col-span-2">
+                    <label className="md:hidden label-modern">Keterangan</label>
+                    <input
+                      type="text"
+                      placeholder="Keterangan..."
+                      value={item.remark || ''}
+                      onChange={e => updateItemField(idx, 'remark', e.target.value)}
+                      onBlur={(e) => {
+                        const val = e.target.value.trim();
+                        if (item.product_id && val !== item._db_remark) {
+                          updateProductField(item.product_id, 'remark', val);
+                          updateItemField(idx, '_db_remark', val);
+                        }
+                      }}
+                      className="input-modern py-2 text-xs"
+                    />
+                  </div>
+
                   {/* Delete Button */}
                   <div className="md:col-span-1 text-right md:text-center mt-2 md:mt-0">
                     <button type="button" onClick={() => setItems(items.filter((_, i) => i !== idx))} disabled={items.length === 1} className="w-full md:w-auto p-2 bg-rose-50 text-rose-600 hover:bg-rose-600 hover:text-white rounded-lg transition-colors font-bold text-xs disabled:opacity-30 disabled:cursor-not-allowed">
@@ -301,7 +368,7 @@ export default function CreateQuotationPage() {
             })}
 
             <div className="pt-2">
-              <button type="button" onClick={() => setItems([...items, { product_id: '', part_code: '', part_name: '', unit: '', qty: 1, unit_price: 0, discount: 0, remark: '' }])} className="w-full md:w-auto border-2 border-dashed border-blue-300 text-blue-600 hover:bg-blue-50 font-bold px-6 py-3 rounded-xl transition-colors flex justify-center items-center gap-2 text-sm">
+              <button type="button" onClick={() => setItems([...items, { product_id: '', part_code: '', part_name: '', unit: '', qty: 1, unit_price: 0, discount: 0, remark: '', _db_price: 0, _db_remark: ''}])} className="w-full md:w-auto border-2 border-dashed border-blue-300 text-blue-600 hover:bg-blue-50 font-bold px-6 py-3 rounded-xl transition-colors flex justify-center items-center gap-2 text-sm">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
                 Tambah Baris Barang Baru
               </button>

@@ -10,7 +10,7 @@ export default function InvoiceDetailPage() {
   
   const [loading, setLoading] = useState(true);
   const [invoice, setInvoice] = useState<any>(null);
-  const [salesOrder, setSalesOrder] = useState<any>(null);
+  const [salesOrder, setSalesOrder] = useState<any>(null);  
   const [customer, setCustomer] = useState<any>(null);
   const [billingAddress, setBillingAddress] = useState<any>(null);
   const [items, setItems] = useState<any[]>([]);
@@ -114,6 +114,7 @@ export default function InvoiceDetailPage() {
   const handleSaveEdits = async () => {
     setIsSavingAll(true);
     try {
+      // 1. Update Header Invoice (Diskon, Grand Total, Catatan Due Date)
       const { error: invErr } = await supabase.from('invoices')
         .update({ 
           discount_amount: discountInput, 
@@ -124,16 +125,37 @@ export default function InvoiceDetailPage() {
 
       if (invErr) throw invErr;
 
-      for (const item of items) {
+      // 2. MENGATASI N+1 PROBLEM: Siapkan array "pesanan" (Promises)
+      const updatePromises = items.map((item) => {
         const targetId = item.invoice_item_id;
+        
+        // Jika item punya ID invoice_item, buatkan promise update-nya
         if (targetId) {
           const currentNote = itemNotes[targetId] || '';
-          const { error: noteErr } = await supabase.from('invoice_items').update({ item_note: currentNote }).eq('id', targetId);
-          if (noteErr) console.warn("Note gagal disimpan:", noteErr.message);
+          
+          // CATATAN: Jangan pakai 'await' di dalam sini. Kita hanya mengumpulkan fungsinya.
+          return supabase
+            .from('invoice_items')
+            .update({ item_note: currentNote })
+            .eq('id', targetId);
         }
+        
+        // Jika tidak ada targetId, lewati (kembalikan promise kosong yang langsung sukses)
+        return Promise.resolve({ error: null });
+      });
+
+      // 3. EKSEKUSI PARALEL: Tembak semua update ke Supabase secara bersamaan!
+      const results = await Promise.all(updatePromises);
+
+      // 4. Pengecekan Error Opsional (Cek apakah ada salah satu barang yang gagal)
+      const failedUpdates = results.filter((res) => res && res.error);
+      if (failedUpdates.length > 0) {
+        console.warn("Ada beberapa catatan barang yang gagal tersimpan:", failedUpdates);
+        alert('Diskon berhasil disimpan, tetapi sebagian catatan gagal diperbarui.');
+      } else {
+        alert('Diskon dan Catatan berhasil disimpan!');
       }
 
-      alert('Diskon dan Catatan berhasil disimpan!');
       fetchInvoiceData(); 
     } catch (error: any) {
       console.error(error);
@@ -162,6 +184,7 @@ export default function InvoiceDetailPage() {
         payment_method: 'Transfer Bank',
         payment_proof_url: proofUrl 
       });
+      
       if (payErr) throw payErr;
 
       alert('Pembayaran berhasil dicatat!');

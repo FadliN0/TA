@@ -80,6 +80,8 @@ function CreateDOForm() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Filter hanya barang yang jumlah kirimnya lebih dari 0
     const finalItems = itemsToDeliver.filter(item => item.qty_to_deliver > 0);
     if (finalItems.length === 0) {
       alert('Isi minimal 1 barang yang dikirim sekarang!');
@@ -88,44 +90,31 @@ function CreateDOForm() {
 
     setIsSaving(true);
     try {
-      const today = new Date();
-      const dd = String(today.getDate()).padStart(2, '0');
-      const mm = String(today.getMonth() + 1).padStart(2, '0');
-      const yyyy = today.getFullYear();
-      const prefix = `DO/${dd}-${mm}-${yyyy}/`;
+      // 1. Siapkan data hari ini
+      const today = new Date().toISOString().split('T')[0];
 
-      const { data: lastDoc } = await supabase.from('delivery_orders')
-        .select('do_number').like('do_number', `${prefix}%`).order('do_number', { ascending: false }).limit(1);
-      
-      let nextSeq = 1;
-      if (lastDoc && lastDoc.length > 0) {
-        const lastPart = lastDoc[0].do_number.split('/').pop();
-        nextSeq = parseInt(lastPart || '0') + 1;
-      }
-      const newDoNumber = `${prefix}${nextSeq}`;
-
-      const { data: doData, error: doErr } = await supabase.from('delivery_orders').insert([{
-        do_number: newDoNumber,
-        so_id: so_id,
-        address_id: salesOrder.address_id,
-        delivery_date: today.toISOString().split('T')[0],
-        status: 'Delivered'
-      }]).select().single();
-
-      if (doErr) throw doErr;
-
-      const itemsToInsert = finalItems.map(i => ({
-        do_id: doData.id,
+      // 2. Petakan array items ke format JSON yang diminta Database
+      const itemsPayload = finalItems.map(i => ({
         so_item_id: i.so_item_id,
         qty_delivered: i.qty_to_deliver
       }));
 
-      const { error: itemErr } = await supabase.from('delivery_order_items').insert(itemsToInsert);
-      if (itemErr) throw itemErr;
+      // 3. Panggil Stored Procedure, Database akan melakukan keajaibannya!
+      const { data: rpcData, error: rpcError } = await supabase.rpc('create_do_transaction', {
+        p_so_id: so_id,
+        p_address_id: salesOrder.address_id,
+        p_delivery_date: today,
+        p_creator_id: null, // Ganti dengan user.id jika Anda memakai Supabase Auth
+        p_items: itemsPayload
+      });
 
-      router.push(`/dashboard/delivery-orders/${doData.id}`);
+      if (rpcError) throw rpcError;
+
+      // 4. Berhasil! Arahkan ke halaman detail DO yang baru terbuat
+      router.push(`/dashboard/delivery-orders/${rpcData.do_id}`);
+      
     } catch (error: any) {
-      alert(`Gagal menyimpan: ${error.message}`);
+      alert(`Gagal menyimpan: ${error.message || error.details}`);
     } finally {
       setIsSaving(false);
     }

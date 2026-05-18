@@ -204,6 +204,7 @@ export default function QuotationDetailPage() {
       <div className="print:hidden w-full max-w-[210mm] mx-auto card-modern p-5 md:p-6 border-l-4 border-l-blue-500 animate-in fade-in slide-in-from-top-4 duration-500 mb-6">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
 
+          {/* --- KIRI: TOMBOL KEMBALI & STATUS --- */}
           <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 w-full md:w-auto">
             <Link href="/dashboard/quotations" className="inline-flex items-center justify-center p-3 bg-slate-50 hover:bg-slate-100 text-slate-500 rounded-xl transition-colors border border-slate-200 shrink-0">
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
@@ -211,12 +212,13 @@ export default function QuotationDetailPage() {
             <div className="w-full sm:w-auto">
               <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Status Dokumen</span>
               
-              {/* ── PERUBAHAN: Jika terkunci, tampilkan label saja. Jika belum, tampilkan select dropdown. ── */}
               {isLocked ? (
+                // TAMPILAN JIKA TERKUNCI (SO SUDAH TERBIT)
                 <div className="bg-slate-100 text-slate-500 border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-black uppercase tracking-wider w-full sm:w-auto text-center sm:text-left flex items-center justify-center sm:justify-start gap-2 cursor-not-allowed">
                   🔒 Terkunci (SO Terbit)
                 </div>
               ) : (
+                // TAMPILAN DROPDOWN JIKA BELUM TERKUNCI
                 <select
                   value={quotation.status}
                   onChange={(e) => handleUpdateStatus(e.target.value)}
@@ -235,19 +237,21 @@ export default function QuotationDetailPage() {
             </div>
           </div>
 
+          {/* --- KANAN: TOMBOL AKSI (REVISI / BUAT SO / PRINT) --- */}
           <div className="flex flex-col sm:flex-row items-stretch sm:items-end gap-3 w-full md:w-auto">
             <div className="flex items-center gap-2 flex-1 sm:flex-none">
               
-              {/* ── PERUBAHAN: Jika terkunci, tampilkan tombol Lihat SO. Jika belum, tampilkan Buat SO & Revisi ── */}
               {isLocked ? (
+                // TOMBOL LIHAT SO (MUNCUL JIKA TERKUNCI)
                 <Link 
-                  href={`/dashboard/sales-orders/${existingSO.id}`} 
+                  href={`/dashboard/sales-orders/${existingSO?.id}`} 
                   className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-slate-800 hover:bg-slate-900 text-white px-4 py-2 rounded-xl font-bold text-sm transition-colors shadow-sm h-[40px]"
                 >
                   👁️ Lihat Dokumen SO
                 </Link>
               ) : (
                 <>
+                  {/* TOMBOL BUAT SO (HANYA MUNCUL JIKA APPROVED) */}
                   {quotation.status === 'Approved' && (
                     <button
                       onClick={() => setIsPOModalOpen(true)}
@@ -257,15 +261,27 @@ export default function QuotationDetailPage() {
                       Buat SO
                     </button>
                   )}
-                  <Link href={`/dashboard/quotations/${id}/edit`} className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-slate-800 hover:bg-slate-900 text-white px-4 py-2 rounded-xl font-bold text-sm transition-colors shadow-sm h-[40px]">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
-                    Revisi
-                  </Link>
+
+                  {/* TOMBOL REVISI (MUNCUL JIKA MASIH DRAFT/SENT/REJECTED) */}
+                  {quotation.status !== 'Approved' && (
+                    <Link 
+                      href={`/dashboard/quotations/${id}/edit`} 
+                      className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-slate-800 hover:bg-slate-900 text-white px-4 py-2 rounded-xl font-bold text-sm transition-colors shadow-sm h-[40px]"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                      Revisi
+                    </Link>
+                  )}
                 </>
               )}
 
             </div>
-            <button onClick={handlePrint} className="w-full sm:w-auto flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl font-bold text-sm transition-colors shadow-sm h-[40px] mt-2 sm:mt-0">
+            
+            {/* TOMBOL CETAK PDF (SELALU MUNCUL) */}
+            <button 
+              onClick={handlePrint} 
+              className="w-full sm:w-auto flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl font-bold text-sm transition-colors shadow-sm h-[40px] mt-2 sm:mt-0"
+            >
               🖨️ Cetak PDF
             </button>
           </div>

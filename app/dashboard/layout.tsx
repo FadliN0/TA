@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { ToastProvider } from '@/components/ui/Alert';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -267,7 +268,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
         {/* AREA HALAMAN (Page Content) */}
         <main className="flex-1 overflow-y-auto p-4 md:p-8 print:p-0 print:overflow-visible relative">
-          {children}
+          <ToastProvider>
+            {children}
+          </ToastProvider>
         </main>
 
       </div>

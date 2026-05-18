@@ -75,6 +75,13 @@ export default function SalesOrderDetailPage() {
       alert('Status Completed hanya bisa diubah otomatis oleh sistem ketika semua Surat Jalan (DO) sudah terkirim!');
       return;
     }
+    
+    // -- LOGIKA BARU: Cegah pembatalan jika sudah ada turunan dokumen --
+    if (newStatus === 'Cancelled' && (hasDO || hasInvoice)) {
+      alert('Tidak bisa membatalkan SO ini karena Surat Jalan (DO) atau Invoice sudah diterbitkan!');
+      return;
+    }
+
     const { error } = await supabase.from('sales_orders').update({ status: newStatus }).eq('id', id);
     if (!error) setSalesOrder({ ...salesOrder, status: newStatus });
   };
@@ -89,44 +96,28 @@ export default function SalesOrderDetailPage() {
     
     setIsCreatingInvoice(true);
     try {
+      // Kita hanya perlu menentukan Due Date (misal 30 hari dari sekarang)
       const today = new Date();
-      const yearMonth = `${today.getFullYear()}${String(today.getMonth() + 1).padStart(2, '0')}`;
-      const prefix = `INV-HJP-${yearMonth}-`;
-
-      const { data: lastDoc } = await supabase
-        .from('invoices')
-        .select('invoice_number')
-        .like('invoice_number', `${prefix}%`)
-        .order('invoice_number', { ascending: false })
-        .limit(1);
-      
-      let nextSeq = 1;
-      if (lastDoc && lastDoc.length > 0) {
-        const lastNum = lastDoc[0].invoice_number;
-        const lastPart = lastNum.split('-').pop();
-        nextSeq = parseInt(lastPart || '0') + 1;
-      }
-      const newInvNumber = `${prefix}${String(nextSeq).padStart(3, '0')}`;
-
       const dueDate = new Date();
       dueDate.setDate(today.getDate() + 30);
       const formattedDueDate = dueDate.toISOString().split('T')[0];
 
-      const { error: rpcError } = await supabase.rpc('generate_full_invoice_from_so', {
+      // Panggil RPC, biarkan Database yang mengurus Nomor Invoice!
+      const { data: rpcData, error: rpcError } = await supabase.rpc('generate_full_invoice_from_so', {
         p_so_id: id,
-        p_inv_number: newInvNumber,
         p_due_date: formattedDueDate,
         p_creator_id: null 
       });
 
       if (rpcError) throw rpcError;
 
-      alert(`Luar biasa! Invoice ${newInvNumber} berhasil digenerate oleh Database.`);
+      // rpcData berisi JSON yang dikembalikan dari Stored Procedure
+      alert(`Luar biasa! Invoice ${rpcData.invoice_number} berhasil digenerate oleh sistem.`);
       router.push(`/dashboard/invoices`); 
 
     } catch (error: any) {
       console.error(error);
-      alert(`Gagal membuat Invoice: ${error.message}`);
+      alert(`Gagal membuat Invoice: ${error.message || error.details}`);
     } finally {
       setIsCreatingInvoice(false);
     }
@@ -165,12 +156,9 @@ export default function SalesOrderDetailPage() {
               <select
                 value={salesOrder.status}
                 onChange={(e) => handleUpdateStatus(e.target.value)}
-                disabled={salesOrder.status === 'Completed'}
-                className={`text-xs font-black uppercase tracking-wider border-2 rounded-lg px-3 py-1.5 outline-none transition-colors cursor-pointer w-full sm:w-auto appearance-none text-center sm:text-left
-                  ${salesOrder.status === 'Open' ? 'bg-blue-100 text-blue-700 border-blue-200' :
-                    salesOrder.status === 'Processing' ? 'bg-amber-100 text-amber-700 border-amber-200' :
-                    salesOrder.status === 'Completed' ? 'bg-emerald-100 text-emerald-700 border-emerald-200 opacity-80 cursor-not-allowed' : 
-                    'bg-rose-100 text-rose-700 border-rose-200'}`}
+                disabled={salesOrder.status === 'Completed' || hasDO || hasInvoice}
+                className={`... (class Anda sebelumnya) ...
+                ${(salesOrder.status === 'Completed' || hasDO || hasInvoice) ? 'opacity-80 cursor-not-allowed' : ''}`}
               >
                 <option value="Open">Open</option>
                 <option value="Processing">Processing</option>

@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 
 export default function TrackingPage() {
-  const [transactions, setTransactions] = useState<any[]>([]);
+  const [trackingData, setTrackingData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
 
@@ -13,40 +13,48 @@ export default function TrackingPage() {
   }, []);
 
   const fetchTrackingData = async () => {
-    setLoading(true);
+    setLoading(true); // Mulai loading
     try {
-      // Kita ambil dari view lifecycle yang sudah merangkum semua dokumen
       const { data, error } = await supabase
-        .from('v_transaction_lifecycle')
+        .from('view_document_tracking')
         .select('*')
         .order('so_date', { ascending: false });
 
       if (error) throw error;
-      if (data) setTransactions(data);
-    } catch (error) {
-      console.error('Error fetching tracking data:', error);
+
+      if (data) {
+        console.log("Data berhasil ditarik:", data); // Array(11) akan muncul di sini
+        setTrackingData(data); // Simpan data ke dalam state React!
+      }
+    } catch (error: any) {
+      console.error("Gagal menarik data tracking:", error.message);
+      alert("Gagal memuat data tracking.");
     } finally {
-      setLoading(false);
+      // APAPUN YANG TERJADI (Sukses/Gagal), matikan loading-nya!
+      setLoading(false); 
     }
   };
 
-  const filteredData = transactions.filter(trx => 
+  const filteredData = trackingData.filter(trx => 
     trx.so_number?.toLowerCase().includes(search.toLowerCase()) ||
     trx.company_name?.toLowerCase().includes(search.toLowerCase())
   );
 
   // Komponen Stepper untuk Visualisasi Timeline
+  // Komponen Stepper untuk Visualisasi Timeline
   const TrackingStepper = ({ trx }: { trx: any }) => {
-    // Logika penentuan status (Bisa disesuaikan dengan isi database kamu)
-    const isQODone = true; // Asumsi kalau sudah masuk lifecycle, QO pasti sudah disetujui
+    // LOGIKA YANG DIPERBAIKI: Menggunakan nama kolom yang benar dari View
+    const isQODone = !!trx.quotation_number; 
     const isSODone = !!trx.so_number;
-    const isDODone = trx.delivery_status === 'Completed' || trx.delivery_status === 'Delivered';
-    const isInvoiceDone = trx.payment_status === 'Paid';
+    // Gunakan do_status, bukan delivery_status
+    const isDODone = trx.do_status === 'Completed' || trx.do_status === 'Delivered';
+    // Gunakan invoice_status, bukan payment_status
+    const isInvoiceDone = trx.invoice_status === 'Paid';
 
     const steps = [
       { 
         title: 'Penawaran (QO)', 
-        desc: 'Disetujui', 
+        desc: trx.quotation_number || 'Tidak Ada', 
         active: isQODone,
         icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
       },
@@ -58,13 +66,13 @@ export default function TrackingPage() {
       },
       { 
         title: 'Surat Jalan (DO)', 
-        desc: trx.delivery_status || 'Pending', 
+        desc: trx.do_status || 'Pending', // Diperbaiki
         active: isDODone,
         icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 14v3m4-3v3m4-3v3M3 21h18M3 10h18M3 7l9-4 9 4M4 10h16v11H4V10z" />
       },
       { 
         title: 'Tagihan (INV)', 
-        desc: trx.payment_status || 'Unpaid', 
+        desc: trx.invoice_status || 'Unpaid', // Diperbaiki
         active: isInvoiceDone,
         icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 14l6-6m-5.5.5h.01m4.99 5h.01M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16l3.5-2 3.5 2 3.5-2 3.5 2z" />
       }
