@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'; // ← sama seperti di layout
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'; 
 import Link from 'next/link';
 
 export default function InvoiceDetailPage() {
@@ -27,12 +27,13 @@ export default function InvoiceDetailPage() {
     fetchRole();
   }, []);
 
-  // ─── Permission flags (sesuai role di layout) ────────────────────
-  // 'admin'   → bisa diskon + cetak PDF (nama role di navItems kamu)
-  // 'atasan'  → bisa semua termasuk catat pembayaran
-  const canEditDiscount   = userRole === 'admin' || userRole === 'atasan';
-  const canPrint          = userRole === 'admin' || userRole === 'atasan';
-  const canRecordPayment  = userRole === 'atasan';
+  // ─── Permission flags ────────────────────
+  const canEditDiscount  = userRole === 'admin' || userRole === 'atasan';
+  const canPrint         = userRole === 'admin' || userRole === 'atasan';
+  const canRecordPayment = userRole === 'atasan';
+  
+  // [TAMBAHAN CANCEL INVOICE] Flag untuk izin membatalkan invoice
+  const canCancelInvoice = userRole === 'admin' || userRole === 'atasan';
 
   const [loading, setLoading] = useState(true);
   const [invoice, setInvoice] = useState<any>(null);
@@ -49,6 +50,11 @@ export default function InvoiceDetailPage() {
   const [payDate, setPayDate] = useState(new Date().toISOString().split('T')[0]);
   const [payRef, setPayRef] = useState('');
   const [paymentProofFile, setPaymentProofFile] = useState<File | null>(null);
+
+  // [TAMBAHAN CANCEL INVOICE] State Pembatalan
+  const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
+  const [cancelReason, setCancelReason] = useState('');
+  const [isSubmittingCancel, setIsSubmittingCancel] = useState(false);
 
   // State Editor
   const [discountInput, setDiscountInput] = useState<number>(0);
@@ -136,8 +142,14 @@ export default function InvoiceDetailPage() {
   const totalPaid = paymentsHistory.reduce((sum, p) => sum + (p.amount_paid || 0), 0);
   const balanceDue = grandTotal - totalPaid;
 
+  // [TAMBAHAN CANCEL INVOICE] Status Variables
+  const isPaid = invoice?.status?.toLowerCase() === 'paid';
+  const isCancelled = invoice?.status?.toLowerCase() === 'cancelled' || invoice?.status?.toLowerCase() === 'canceled';
+  const isOverdue = new Date(invoice?.due_date) < new Date() && !isPaid && !isCancelled;
+  const isEditable = !isPaid && !isCancelled; // Tidak bisa di-edit jika sudah lunas atau batal
+
   const handleSaveEdits = async () => {
-    if (!canEditDiscount) return;
+    if (!canEditDiscount || !isEditable) return;
     setIsSavingAll(true);
     try {
       const { error: invErr } = await supabase.from('invoices')
@@ -178,7 +190,7 @@ export default function InvoiceDetailPage() {
 
   const handlePaymentSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!canRecordPayment) return;
+    if (!canRecordPayment || isCancelled) return;
     if (payAmount <= 0) return alert('Nominal harus lebih dari 0');
     if (payAmount > balanceDue) return alert(`Nominal melebihi sisa tagihan! Maksimal: Rp ${balanceDue.toLocaleString('id-ID')}`);
 
@@ -212,6 +224,31 @@ export default function InvoiceDetailPage() {
     }
   };
 
+  // [TAMBAHAN CANCEL INVOICE] Fungsi Handler Pembatalan menggunakan RPC
+  const handleCancelSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!canCancelInvoice) return;
+    if (!cancelReason.trim()) return alert('Alasan pembatalan wajib diisi!');
+
+    setIsSubmittingCancel(true);
+    try {
+      const { data, error } = await supabase.rpc('cancel_invoice', {
+        p_invoice_id: id,
+        p_reason: cancelReason
+      });
+
+      if (error) throw error;
+
+      alert('Invoice berhasil dibatalkan!');
+      setIsCancelModalOpen(false);
+      setTimeout(() => fetchInvoiceData(), 500); // Refresh data
+    } catch (error: any) {
+      alert(`Gagal membatalkan invoice: ${error.message}`);
+    } finally {
+      setIsSubmittingCancel(false);
+    }
+  };
+
   const handlePrint = () => window.print();
 
   const MIN_ROWS = 8;
@@ -226,9 +263,6 @@ export default function InvoiceDetailPage() {
       <p className="text-slate-400 font-bold animate-pulse">Menyiapkan dokumen Invoice...</p>
     </div>
   );
-
-  const isPaid = invoice?.status?.toLowerCase() === 'paid';
-  const isOverdue = new Date(invoice?.due_date) < new Date() && !isPaid;
   
   const borderCell = '1px solid #000';
   const font = "Arial, Helvetica, sans-serif";
@@ -255,7 +289,10 @@ export default function InvoiceDetailPage() {
             <div>
               <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Status Dokumen</span>
               <div className="flex items-center gap-2 flex-wrap">
-                {isPaid ? (
+                {/* [TAMBAHAN CANCEL INVOICE] Badge Status Batal */}
+                {isCancelled ? (
+                  <span className="bg-rose-100 text-rose-800 border-rose-200 border px-3 py-1.5 rounded-md text-xs font-black uppercase tracking-wider">🚫 DIBATALKAN</span>
+                ) : isPaid ? (
                   <span className="badge-success">✅ LUNAS TERKUNCI</span>
                 ) : invoice?.status === 'Partial' ? (
                   <span className="bg-blue-100 text-blue-700 border-blue-200 border px-3 py-1.5 rounded-md text-xs font-black uppercase tracking-wider">⏳ PARSIAL (BELUM LUNAS)</span>
@@ -277,7 +314,7 @@ export default function InvoiceDetailPage() {
                   type="number" 
                   value={discountInput === 0 ? '' : discountInput}
                   onChange={(e) => setDiscountInput(Number(e.target.value))}
-                  disabled={isPaid} 
+                  disabled={!isEditable} 
                   placeholder="0"
                   className="w-full border-2 border-slate-200 rounded-xl px-3 py-2 text-sm font-black text-rose-600 focus:border-purple-500 outline-none disabled:bg-slate-50 disabled:text-slate-400 text-right"
                 />
@@ -285,11 +322,21 @@ export default function InvoiceDetailPage() {
             )}
 
             <div className="flex items-center gap-2 flex-1 sm:flex-none">
+              {/* [TAMBAHAN CANCEL INVOICE] Tombol Batal Invoice */}
+              {canCancelInvoice && !isPaid && !isCancelled && (
+                 <button
+                   onClick={() => setIsCancelModalOpen(true)}
+                   className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-white hover:bg-rose-50 text-rose-600 border-2 border-rose-200 hover:border-rose-300 px-3 py-2 rounded-xl font-bold text-sm transition-colors shadow-sm h-[40px]"
+                 >
+                   🚫 Batalkan
+                 </button>
+              )}
+
               {/* Tombol Simpan — hanya admin & atasan */}
-              {canEditDiscount && (
+              {canEditDiscount && !isCancelled && (
                 <button 
                   onClick={handleSaveEdits}
-                  disabled={isSavingAll || isPaid}
+                  disabled={isSavingAll || !isEditable}
                   className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-slate-800 hover:bg-slate-900 text-white px-4 py-2 rounded-xl font-bold text-sm transition-colors disabled:opacity-30 disabled:cursor-not-allowed shadow-sm h-[40px]"
                 >
                   {isSavingAll ? '...' : '💾 Simpan'}
@@ -297,7 +344,7 @@ export default function InvoiceDetailPage() {
               )}
 
               {/* Tombol Bayar — hanya atasan */}
-              {canRecordPayment && !isPaid && (
+              {canRecordPayment && !isPaid && !isCancelled && (
                 <button
                   onClick={() => { setPayAmount(balanceDue); setIsPaymentModalOpen(true); }}
                   className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl font-bold text-sm transition-colors shadow-emerald-600/30 shadow-lg h-[40px]"
@@ -318,7 +365,7 @@ export default function InvoiceDetailPage() {
         </div>
 
         {/* Info untuk admin: tombol bayar tidak tersedia */}
-        {userRole === 'admin' && !isPaid && (
+        {userRole === 'admin' && !isPaid && !isCancelled && (
           <p className="mt-4 pt-3 border-t border-slate-100 text-[11px] text-slate-400 flex items-center gap-1.5">
             <svg className="w-3.5 h-3.5 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
             Pencatatan pembayaran hanya dapat dilakukan oleh Atasan.
@@ -335,6 +382,26 @@ export default function InvoiceDetailPage() {
           {isPaid && (
             <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 border-[12px] border-emerald-500 text-emerald-500 px-10 py-2 rounded-3xl text-9xl font-black uppercase tracking-widest opacity-20 transform -rotate-[25deg] pointer-events-none z-50 print:opacity-[0.15]">
               PAID
+            </div>
+          )}
+          
+          {/* [TAMBAHAN CANCEL INVOICE] Watermark Canceled */}
+          {isCancelled && (
+            <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 border-[12px] border-rose-500 text-rose-500 px-10 py-2 rounded-3xl text-7xl md:text-9xl font-black uppercase tracking-widest opacity-20 transform -rotate-[25deg] pointer-events-none z-50 print:opacity-[0.25]">
+              CANCELED
+            </div>
+          )}
+
+          {/* [TAMBAHAN CANCEL INVOICE] Banner Riwayat Batal di dalam Kertas (Biar Tercetak) */}
+          {isCancelled && (
+            <div className="mb-6 p-4 border-2 border-rose-500 bg-rose-50 text-rose-900 rounded-lg" style={{ fontSize: 12 }}>
+              <strong className="block mb-1 text-sm uppercase tracking-wider text-rose-700">⚠ INVOICE INI TELAH DIBATALKAN / HANGUS</strong>
+              <table className="mt-2 text-xs">
+                <tbody>
+                  <tr><td className="w-24 font-bold">Waktu Batal</td><td>: {new Date(invoice?.canceled_at).toLocaleString('id-ID')}</td></tr>
+                  <tr><td className="font-bold align-top">Alasan</td><td>: {invoice?.cancel_reason || '-'}</td></tr>
+                </tbody>
+              </table>
             </div>
           )}
 
@@ -481,7 +548,7 @@ export default function InvoiceDetailPage() {
                           e.target.style.height = 'auto';
                           e.target.style.height = e.target.scrollHeight + 'px';
                         }}
-                        disabled={isPaid || !canEditDiscount}
+                        disabled={!isEditable}
                         placeholder=""
                         className="w-full bg-transparent border-none outline-none px-2 py-1.5 text-[10px] text-center focus:bg-purple-50 print:p-0 print:focus:bg-transparent disabled:text-black font-medium resize-none overflow-hidden"
                         style={{ minHeight: '26px' }}
@@ -505,7 +572,7 @@ export default function InvoiceDetailPage() {
                   <textarea 
                     value={invoiceNote}
                     onChange={(e) => setInvoiceNote(e.target.value)}
-                    disabled={isPaid || !canEditDiscount}
+                    disabled={!isEditable}
                     className="w-full h-24 bg-transparent border-none outline-none resize-none text-[11px] leading-relaxed disabled:text-black font-medium"
                     placeholder="Tulis instruksi transfer di sini..."
                   />
@@ -513,7 +580,10 @@ export default function InvoiceDetailPage() {
                 <td style={{ border: borderCell, borderTop: '3px double #000', padding: '1px 1px', fontWeight: 700 }}>Sub Total</td>
                 <td colSpan={2} style={{ border: borderCell, borderTop: '3px double #000', padding: '6px 8px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span>Rp</span><span>{subTotal.toLocaleString('id-ID')}</span>
+                    <span>Rp</span>
+                    <span style={{ textDecoration: isCancelled ? 'line-through' : 'none' }}>
+                      {subTotal.toLocaleString('id-ID')}
+                    </span>
                   </div>
                 </td>
               </tr>
@@ -529,7 +599,10 @@ export default function InvoiceDetailPage() {
                 <td style={{ border: borderCell, padding: '6px 10px', fontWeight: 700 }}>Total</td>
                 <td colSpan={2} style={{ border: borderCell, padding: '6px 8px', fontWeight: 900 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span>Rp</span><span>{grandTotal.toLocaleString('id-ID')}</span>
+                    <span>Rp</span>
+                    <span style={{ textDecoration: isCancelled ? 'line-through' : 'none' }}>
+                      {grandTotal.toLocaleString('id-ID')}
+                    </span>
                   </div>
                 </td>
               </tr>
@@ -590,7 +663,7 @@ export default function InvoiceDetailPage() {
                   <td colSpan={3} className="py-3 px-3 text-right font-bold text-slate-800 uppercase">Total Dibayar:</td>
                   <td className="py-3 px-3 text-right font-black text-slate-900">Rp {totalPaid.toLocaleString('id-ID')}</td>
                 </tr>
-                {!isPaid && (
+                {!isPaid && !isCancelled && (
                   <tr>
                     <td colSpan={3} className="py-2 px-3 text-right font-bold text-slate-600 uppercase">Sisa Piutang:</td>
                     <td className="py-2 px-3 text-right font-bold text-rose-600">Rp {balanceDue.toLocaleString('id-ID')}</td>
@@ -602,8 +675,8 @@ export default function InvoiceDetailPage() {
         </div>
       )}
 
-      {/* ── MODAL INPUT PEMBAYARAN — hanya render jika canRecordPayment ── */}
-      {isPaymentModalOpen && canRecordPayment && (
+      {/* ── MODAL INPUT PEMBAYARAN ── */}
+      {isPaymentModalOpen && canRecordPayment && !isCancelled && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex justify-center p-4 print:hidden items-end sm:items-center sm:p-6 overflow-y-auto">
           <form onSubmit={handlePaymentSubmit} className="bg-white rounded-t-2xl sm:rounded-2xl w-full max-w-md shadow-2xl flex flex-col max-h-[90vh] my-auto animate-in slide-in-from-bottom-10 sm:scale-in-center duration-300">
             
@@ -676,6 +749,50 @@ export default function InvoiceDetailPage() {
               <button type="button" onClick={() => setIsPaymentModalOpen(false)} className="btn-secondary">Batal</button>
               <button type="submit" disabled={isSubmittingPayment} className="flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-6 py-2.5 rounded-xl shadow-sm disabled:bg-emerald-300 transition-colors">
                 {isSubmittingPayment ? 'Memproses...' : 'Simpan Uang Masuk'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* ── [TAMBAHAN CANCEL INVOICE] MODAL PEMBATALAN ── */}
+      {isCancelModalOpen && canCancelInvoice && !isCancelled && (
+        <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-[100] flex justify-center p-4 print:hidden items-center overflow-y-auto">
+          <form onSubmit={handleCancelSubmit} className="bg-white rounded-2xl w-full max-w-md shadow-2xl flex flex-col max-h-[90vh] my-auto animate-in zoom-in-95 duration-300">
+            
+            <div className="shrink-0 bg-rose-600 p-5 text-white flex justify-between items-center rounded-t-2xl">
+              <div>
+                <h2 className="text-xl font-black flex items-center gap-2">
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                  Batalkan Invoice
+                </h2>
+                <p className="text-rose-100 text-xs mt-0.5">{invoice?.invoice_number}</p>
+              </div>
+              <button type="button" onClick={() => setIsCancelModalOpen(false)} className="text-rose-200 hover:text-white bg-rose-700/50 hover:bg-rose-700 p-2 rounded-lg transition-colors">✕</button>
+            </div>
+            
+            <div className="p-6 space-y-5 overflow-y-auto custom-scrollbar">
+              <p className="text-sm text-slate-600 leading-relaxed">
+                Tindakan ini <strong className="text-rose-600">tidak dapat dibatalkan</strong>. Invoice yang dibatalkan tidak akan dihitung ke dalam laporan KPI dan target pendapatan perusahaan.
+              </p>
+              
+              <div>
+                <label className="label-modern font-bold text-slate-800">Alasan Pembatalan <span className="text-rose-500">*</span></label>
+                <textarea 
+                  required 
+                  rows={4}
+                  value={cancelReason} 
+                  onChange={(e) => setCancelReason(e.target.value)} 
+                  placeholder="Berikan alasan detail (contoh: Salah input harga, retur barang, dll)"
+                  className="input-modern mt-1 resize-none" 
+                />
+              </div>
+            </div>
+            
+            <div className="shrink-0 p-5 bg-slate-50 border-t border-slate-100 flex justify-end gap-3 rounded-b-2xl">
+              <button type="button" onClick={() => setIsCancelModalOpen(false)} className="btn-secondary">Kembali</button>
+              <button type="submit" disabled={isSubmittingCancel} className="flex items-center justify-center gap-2 bg-rose-600 hover:bg-rose-700 text-white font-bold px-6 py-2.5 rounded-xl shadow-sm disabled:bg-rose-300 transition-colors">
+                {isSubmittingCancel ? 'Memproses...' : 'Ya, Batalkan Invoice'}
               </button>
             </div>
           </form>

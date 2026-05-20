@@ -7,7 +7,7 @@ import Link from 'next/link';
 export default function InvoiceListPage() {
   const [invoices, setInvoices] = useState<any[]>([]);
   const [search, setSearch] = useState('');
-  const [filter, setFilter] = useState('All'); // State baru untuk Filter Dropdown
+  const [filter, setFilter] = useState('All');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -44,14 +44,20 @@ export default function InvoiceListPage() {
       (inv.sales_orders?.so_number && inv.sales_orders.so_number.toLowerCase().includes(search.toLowerCase()));
 
     // 2. Tentukan Status Aktual Dokumen
-    const isOverdue = new Date(inv.due_date) < new Date() && inv.status?.toLowerCase() !== 'paid';
-    const isPaid = inv.status?.toLowerCase() === 'paid';
-    const isUnpaid = inv.status?.toLowerCase() !== 'paid' && !isOverdue; // Belum bayar tapi belum lewat batas
+    const statusLower = inv.status?.toLowerCase();
+    // [TAMBAHAN CANCEL INVOICE] Deteksi status batal
+    const isCancelled = statusLower === 'cancelled' || statusLower === 'canceled';
+    const isPaid = statusLower === 'paid';
+    
+    // [TAMBAHAN CANCEL INVOICE] Invoice batal tidak boleh masuk logika overdue atau unpaid
+    const isOverdue = new Date(inv.due_date) < new Date() && !isPaid && !isCancelled;
+    const isUnpaid = !isPaid && !isCancelled && !isOverdue; 
 
     // 3. Terapkan Filter Dropdown
     if (filter === 'Overdue') return matchSearch && isOverdue;
     if (filter === 'Paid') return matchSearch && isPaid;
     if (filter === 'Unpaid') return matchSearch && isUnpaid;
+    if (filter === 'Cancelled') return matchSearch && isCancelled; // [TAMBAHAN CANCEL INVOICE]
     
     return matchSearch; // Default: 'All'
   });
@@ -63,6 +69,10 @@ export default function InvoiceListPage() {
         return <span className="badge-success">Lunas</span>;
       case 'partial':
         return <span className="bg-blue-100 text-blue-700 border border-blue-200 px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider inline-block">Parsial</span>;
+      // [TAMBAHAN CANCEL INVOICE] Tambah warna merah terang untuk badge batal
+      case 'cancelled':
+      case 'canceled':
+        return <span className="bg-rose-100 text-rose-800 border border-rose-200 px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider inline-block">Dibatalkan</span>;
       case 'unpaid':
       default:
         return <span className="badge-danger">Belum Bayar</span>;
@@ -71,8 +81,11 @@ export default function InvoiceListPage() {
 
   const fmtRp = (num: number) => `Rp ${(num || 0).toLocaleString('id-ID')}`;
 
-  // Hitung jumlah tagihan Overdue untuk badge indikator
-  const overdueCount = invoices.filter(inv => new Date(inv.due_date) < new Date() && inv.status?.toLowerCase() !== 'paid').length;
+  // [TAMBAHAN CANCEL INVOICE] Pastikan invoice batal tidak ikut terhitung sebagai badge alert "Overdue"
+  const overdueCount = invoices.filter(inv => {
+    const statusLower = inv.status?.toLowerCase();
+    return new Date(inv.due_date) < new Date() && statusLower !== 'paid' && statusLower !== 'cancelled' && statusLower !== 'canceled';
+  }).length;
 
   return (
     <div className="space-y-6 max-w-[1400px] mx-auto pb-10 animate-in fade-in duration-500">
@@ -118,6 +131,7 @@ export default function InvoiceListPage() {
             <option value="Paid">✅ Sudah Lunas</option>
             <option value="Unpaid">⏳ Belum Bayar (Aktif)</option>
             <option value="Overdue">🚨 OVERDUE (Telat Bayar)</option>
+            <option value="Cancelled">🚫 Dibatalkan</option> {/* [TAMBAHAN CANCEL INVOICE] */}
           </select>
         </div>
       </div>
@@ -154,12 +168,14 @@ export default function InvoiceListPage() {
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {filteredInvoices.map((inv) => {
-                  const isOverdue = new Date(inv.due_date) < new Date() && inv.status?.toLowerCase() !== 'paid';
+                  const statusLower = inv.status?.toLowerCase();
+                  const isCancelled = statusLower === 'cancelled' || statusLower === 'canceled';
+                  const isOverdue = new Date(inv.due_date) < new Date() && statusLower !== 'paid' && !isCancelled;
 
                   return (
-                    <tr key={inv.id} className="hover:bg-purple-50/30 transition-colors group">
+                    <tr key={inv.id} className={`transition-colors group ${isCancelled ? 'bg-slate-50 opacity-70' : 'hover:bg-purple-50/30'}`}>
                       <td className="p-4">
-                        <div className="font-mono text-sm font-bold text-purple-700">{inv.invoice_number}</div>
+                        <div className={`font-mono text-sm font-bold ${isCancelled ? 'text-slate-500 line-through' : 'text-purple-700'}`}>{inv.invoice_number}</div>
                         <div className="inline-block bg-slate-100 border border-slate-200 px-2 py-0.5 rounded text-[10px] font-mono font-bold text-slate-500 mt-1 shadow-sm">
                           Ref SO: {inv.sales_orders?.so_number || '-'}
                         </div>
@@ -174,7 +190,10 @@ export default function InvoiceListPage() {
                         {isOverdue && <div className="text-[10px] text-rose-500 font-black uppercase mt-0.5 tracking-widest animate-pulse">Overdue!</div>}
                       </td>
                       <td className="p-4 text-sm text-slate-900 text-right font-black">
-                        {fmtRp(inv.grand_total)}
+                        {/* [TAMBAHAN CANCEL INVOICE] Coret angka total jika batal */}
+                        <span className={isCancelled ? 'line-through text-slate-400 font-medium' : ''}>
+                          {fmtRp(inv.grand_total)}
+                        </span>
                       </td>
                       <td className="p-4 text-center">
                         {getStatusBadge(inv.status)}
@@ -185,7 +204,7 @@ export default function InvoiceListPage() {
                           className="text-xs font-bold text-purple-600 hover:text-purple-800 bg-purple-50 hover:bg-purple-100 px-3 py-2 rounded-lg transition-colors inline-flex items-center gap-1.5"
                         >
                           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
-                          Buka Detail
+                          {isCancelled ? 'Lihat' : 'Buka Detail'}
                         </Link>
                       </td>
                     </tr>
@@ -200,14 +219,16 @@ export default function InvoiceListPage() {
               ========================================== */}
           <div className="md:hidden space-y-4">
             {filteredInvoices.map((inv) => {
-              const isOverdue = new Date(inv.due_date) < new Date() && inv.status?.toLowerCase() !== 'paid';
+              const statusLower = inv.status?.toLowerCase();
+              const isCancelled = statusLower === 'cancelled' || statusLower === 'canceled';
+              const isOverdue = new Date(inv.due_date) < new Date() && statusLower !== 'paid' && !isCancelled;
 
               return (
-                <div key={inv.id} className={`card-modern p-5 flex flex-col gap-3 relative border-l-4 ${isOverdue ? 'border-l-rose-500 bg-rose-50/10' : 'border-l-purple-500'}`}>
+                <div key={inv.id} className={`card-modern p-5 flex flex-col gap-3 relative border-l-4 ${isOverdue ? 'border-l-rose-500 bg-rose-50/10' : isCancelled ? 'border-l-slate-400 bg-slate-50' : 'border-l-purple-500'}`}>
                   
                   <div className="flex justify-between items-start border-b border-slate-100 pb-3">
                     <div>
-                      <div className="font-mono text-sm font-bold text-purple-700">{inv.invoice_number}</div>
+                      <div className={`font-mono text-sm font-bold ${isCancelled ? 'text-slate-500 line-through' : 'text-purple-700'}`}>{inv.invoice_number}</div>
                       <div className="text-[10px] font-bold text-slate-400 mt-1">Jatuh Tempo:</div>
                       <div className={`text-xs font-bold ${isOverdue ? 'text-rose-600' : 'text-slate-600'}`}>
                         {new Date(inv.due_date).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })}
@@ -224,15 +245,18 @@ export default function InvoiceListPage() {
                     <div className="inline-block bg-slate-100 border border-slate-200 px-2 py-0.5 rounded text-[10px] font-mono font-bold text-slate-600 mb-2">
                       Ref SO: {inv.sales_orders?.so_number || '-'}
                     </div>
-                    <div className="text-lg font-black text-slate-900">{fmtRp(inv.grand_total)}</div>
+                    {/* [TAMBAHAN CANCEL INVOICE] Coret angka total di mobile juga */}
+                    <div className={`text-lg font-black ${isCancelled ? 'text-slate-400 line-through' : 'text-slate-900'}`}>
+                      {fmtRp(inv.grand_total)}
+                    </div>
                   </div>
 
                   <div className="pt-3 border-t border-slate-100 mt-1">
                     <Link 
                       href={`/dashboard/invoices/${inv.id}`} 
-                      className="w-full text-center text-xs font-bold text-purple-700 bg-purple-50 hover:bg-purple-100 px-4 py-3 rounded-xl transition-colors block"
+                      className={`w-full text-center text-xs font-bold px-4 py-3 rounded-xl transition-colors block ${isCancelled ? 'text-slate-600 bg-slate-200 hover:bg-slate-300' : 'text-purple-700 bg-purple-50 hover:bg-purple-100'}`}
                     >
-                      Buka & Proses Pembayaran
+                      {isCancelled ? 'Lihat Detail' : 'Buka & Proses Pembayaran'}
                     </Link>
                   </div>
                 </div>

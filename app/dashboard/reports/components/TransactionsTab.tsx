@@ -9,6 +9,9 @@ const fmtRp = (num: number) => `Rp ${Number(num || 0).toLocaleString('id-ID')}`;
 
 const getBadgeStyle = (status: string) => {
   const s = status?.toLowerCase() || '';
+  // [TAMBAHAN CANCEL INVOICE] Tambah style warna khusus untuk batal
+  if (s.includes('cancel')) return 'bg-slate-200 text-slate-600 border-slate-300'; 
+  
   if (s.includes('unpaid') || s.includes('pending') || s.includes('open')) return 'bg-rose-100 text-rose-700 border-rose-200';
   if (s.includes('paid') || s.includes('completed') || s.includes('delivered')) return 'bg-emerald-100 text-emerald-700 border-emerald-200';
   if (s.includes('partial')) return 'bg-blue-100 text-blue-700 border-blue-200';
@@ -54,12 +57,16 @@ export default function TransactionsTab({ customersList }: { customersList: any[
       // Filter tipe laporan berdasarkan dropdown di UI
       let formatted = data || [];
       if (reportType === 'unpaid') {
-        formatted = formatted.filter(item => item.payment_status !== 'Paid' && item.payment_status !== 'Cancelled');
+        // [TAMBAHAN CANCEL INVOICE] Pastikan report unpaid tidak menarik yang cancelled
+        formatted = formatted.filter(item => {
+          const s = item.payment_status?.toLowerCase();
+          return s !== 'paid' && !s?.includes('cancel');
+        });
       } else if (reportType === 'partial_do') {
         formatted = formatted.filter(item => item.delivery_status !== 'Delivered' && item.delivery_status !== 'Completed');
       }
 
-      setReportData(formatted); // Berhasil dimasukkan ke state!
+      setReportData(formatted); 
     } catch (err: any) {
       alert(`Gagal menarik laporan: ${err.message}`);
     } finally {
@@ -69,11 +76,18 @@ export default function TransactionsTab({ customersList }: { customersList: any[
 
   const exportCSV = () => {
     const headers = ['Tanggal', 'Klien', 'No. PO', 'No. SO', 'No. DO', 'Status Kirim', 'Invoice', 'Status Bayar', 'Total', 'Terbayar', 'Sisa'];
-    const rows = reportData.map(item => [
-      new Date(item.so_date).toLocaleDateString('id-ID'), `"${item.company_name}"`, item.po_number || '-', item.so_number,
-      `"${item.do_numbers}"`, item.delivery_status, item.invoice_number, item.payment_status, item.total_order_value, 
-      item.total_paid_amount, (item.total_order_value - item.total_paid_amount)
-    ]);
+    const rows = reportData.map(item => {
+      // [TAMBAHAN CANCEL INVOICE] Set sisa jadi 0 jika batal, agar tidak error di laporan Excel/CSV
+      const isCancelled = item.payment_status?.toLowerCase().includes('cancel');
+      const isPaid = item.payment_status?.toLowerCase() === 'paid';
+      const sisaTagihan = (isPaid || isCancelled) ? 0 : Math.max(0, item.total_order_value - (item.total_paid_amount || 0));
+
+      return [
+        new Date(item.so_date).toLocaleDateString('id-ID'), `"${item.company_name}"`, item.po_number || '-', item.so_number,
+        `"${item.do_numbers}"`, item.delivery_status, item.invoice_number, item.payment_status, item.total_order_value, 
+        item.total_paid_amount || 0, sisaTagihan
+      ];
+    });
     downloadBlob(headers, rows, `Laporan_Transaksi.csv`);
   };
 
@@ -134,14 +148,17 @@ export default function TransactionsTab({ customersList }: { customersList: any[
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {reportData.map((item) => {
+                  // [TAMBAHAN CANCEL INVOICE] Deteksi status
+                  const isCancelled = item.payment_status?.toLowerCase().includes('cancel');
                   const isPaid = item.payment_status?.toLowerCase() === 'paid';
-                  const balance = isPaid ? 0 : Math.max(0, item.total_order_value - item.total_paid_amount);
+                  const balance = (isPaid || isCancelled) ? 0 : Math.max(0, item.total_order_value - (item.total_paid_amount || 0));
+                  
                   return (
-                    <tr key={item.so_id} onClick={() => router.push(`/dashboard/sales-orders/${item.so_id}`)} className="cursor-pointer transition-colors hover:bg-blue-50/50 group">
+                    <tr key={item.so_id} onClick={() => router.push(`/dashboard/sales-orders/${item.so_id}`)} className={`cursor-pointer transition-colors group ${isCancelled ? 'bg-slate-50 opacity-70' : 'hover:bg-blue-50/50'}`}>
                       <td className="p-4 text-slate-600 font-medium">{new Date(item.so_date).toLocaleDateString('id-ID')}</td>
-                      <td className="p-4 font-black text-slate-900 uppercase">{item.company_name}</td>
+                      <td className={`p-4 font-black uppercase ${isCancelled ? 'text-slate-500' : 'text-slate-900'}`}>{item.company_name}</td>
                       <td className="p-4">
-                        <div className="font-bold text-blue-700 group-hover:underline">{item.so_number}</div>
+                        <div className={`font-bold group-hover:underline ${isCancelled ? 'text-slate-500' : 'text-blue-700'}`}>{item.so_number}</div>
                         <div className="font-mono text-[10px] text-slate-500 font-bold mt-0.5">PO: {item.po_number || '-'}</div>
                       </td>
                       <td className="p-4">
@@ -153,8 +170,11 @@ export default function TransactionsTab({ customersList }: { customersList: any[
                         <div className="font-mono text-[10px] text-slate-600 font-bold">{item.invoice_number || '-'}</div>
                       </td>
                       <td className="p-4 text-right">
-                        <div className="font-black text-slate-950">{fmtRp(item.total_order_value)}</div>
-                        {balance > 0 && (
+                        {/* [TAMBAHAN CANCEL INVOICE] Nilai dicoret jika batal */}
+                        <div className={`font-black ${isCancelled ? 'text-slate-400 line-through' : 'text-slate-950'}`}>{fmtRp(item.total_order_value)}</div>
+                        
+                        {/* Label sisa merah tidak dimunculkan kalau invoice sudah batal */}
+                        {balance > 0 && !isCancelled && (
                           <div className="text-[10px] font-black text-rose-600 bg-rose-50 px-2 py-0.5 rounded inline-block mt-1">
                             Sisa: {fmtRp(balance)}
                           </div>
