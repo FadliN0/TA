@@ -3,11 +3,37 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'; // ← sama seperti di layout
 import Link from 'next/link';
 
 export default function InvoiceDetailPage() {
   const { id } = useParams();
-  
+
+  // ─── Role: dibaca persis sama seperti di dashboard/layout.tsx ────
+  const supabaseClient = createClientComponentClient();
+  const [userRole, setUserRole] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchRole = async () => {
+      const { data: { session } } = await supabaseClient.auth.getSession();
+      if (!session) return;
+      const { data: profileData } = await supabaseClient
+        .from('profiles')
+        .select('role')
+        .eq('id', session.user.id)
+        .single();
+      if (profileData?.role) setUserRole(profileData.role.toLowerCase());
+    };
+    fetchRole();
+  }, []);
+
+  // ─── Permission flags (sesuai role di layout) ────────────────────
+  // 'admin'   → bisa diskon + cetak PDF (nama role di navItems kamu)
+  // 'atasan'  → bisa semua termasuk catat pembayaran
+  const canEditDiscount   = userRole === 'admin' || userRole === 'atasan';
+  const canPrint          = userRole === 'admin' || userRole === 'atasan';
+  const canRecordPayment  = userRole === 'atasan';
+
   const [loading, setLoading] = useState(true);
   const [invoice, setInvoice] = useState<any>(null);
   const [salesOrder, setSalesOrder] = useState<any>(null);  
@@ -85,7 +111,6 @@ export default function InvoiceDetailPage() {
           const matchedInvItem = invItemsData?.find((invItem) => invItem.so_item_id === soItem.id);
           const targetId = matchedInvItem ? matchedInvItem.id : soItem.id;
           initialNotes[targetId] = matchedInvItem?.item_note || '';
-
           return {
             ...soItem,
             invoice_item_id: matchedInvItem?.id, 
@@ -112,9 +137,9 @@ export default function InvoiceDetailPage() {
   const balanceDue = grandTotal - totalPaid;
 
   const handleSaveEdits = async () => {
+    if (!canEditDiscount) return;
     setIsSavingAll(true);
     try {
-      // 1. Update Header Invoice (Diskon, Grand Total, Catatan Due Date)
       const { error: invErr } = await supabase.from('invoices')
         .update({ 
           discount_amount: discountInput, 
@@ -125,40 +150,26 @@ export default function InvoiceDetailPage() {
 
       if (invErr) throw invErr;
 
-      // 2. MENGATASI N+1 PROBLEM: Siapkan array "pesanan" (Promises)
       const updatePromises = items.map((item) => {
         const targetId = item.invoice_item_id;
-        
-        // Jika item punya ID invoice_item, buatkan promise update-nya
         if (targetId) {
-          const currentNote = itemNotes[targetId] || '';
-          
-          // CATATAN: Jangan pakai 'await' di dalam sini. Kita hanya mengumpulkan fungsinya.
           return supabase
             .from('invoice_items')
-            .update({ item_note: currentNote })
+            .update({ item_note: itemNotes[targetId] || '' })
             .eq('id', targetId);
         }
-        
-        // Jika tidak ada targetId, lewati (kembalikan promise kosong yang langsung sukses)
         return Promise.resolve({ error: null });
       });
 
-      // 3. EKSEKUSI PARALEL: Tembak semua update ke Supabase secara bersamaan!
       const results = await Promise.all(updatePromises);
-
-      // 4. Pengecekan Error Opsional (Cek apakah ada salah satu barang yang gagal)
       const failedUpdates = results.filter((res) => res && res.error);
       if (failedUpdates.length > 0) {
-        console.warn("Ada beberapa catatan barang yang gagal tersimpan:", failedUpdates);
         alert('Diskon berhasil disimpan, tetapi sebagian catatan gagal diperbarui.');
       } else {
         alert('Diskon dan Catatan berhasil disimpan!');
       }
-
       fetchInvoiceData(); 
     } catch (error: any) {
-      console.error(error);
       alert(`Gagal menyimpan: ${error.message}`);
     } finally {
       setIsSavingAll(false);
@@ -167,6 +178,7 @@ export default function InvoiceDetailPage() {
 
   const handlePaymentSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canRecordPayment) return;
     if (payAmount <= 0) return alert('Nominal harus lebih dari 0');
     if (payAmount > balanceDue) return alert(`Nominal melebihi sisa tagihan! Maksimal: Rp ${balanceDue.toLocaleString('id-ID')}`);
 
@@ -182,17 +194,17 @@ export default function InvoiceDetailPage() {
         amount_paid: payAmount,
         payment_date: payDate,
         payment_method: 'Transfer Bank',
+        reference_number: payRef || null,
         payment_proof_url: proofUrl 
       });
-      
       if (payErr) throw payErr;
 
       alert('Pembayaran berhasil dicatat!');
       setIsPaymentModalOpen(false);
       setPayAmount(0);
+      setPayRef('');
       setPaymentProofFile(null);
       setTimeout(() => fetchInvoiceData(), 500);
-
     } catch (error: any) {
       alert(`Gagal mencatat pembayaran: ${error.message}`);
     } finally {
@@ -232,7 +244,7 @@ export default function InvoiceDetailPage() {
   return (
     <div className="max-w-[1200px] mx-auto space-y-6 pb-10 print:m-0 print:p-0 print:max-w-none text-black relative">
 
-      {/* ── PANEL KONTROL ADMIN (FIT DENGAN KERTAS A4) ── */}
+      {/* ── PANEL KONTROL ADMIN ── */}
       <div className="print:hidden w-full max-w-[210mm] mx-auto card-modern p-5 md:p-6 border-l-4 border-l-purple-500 animate-in fade-in slide-in-from-top-4 duration-500 mb-6">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
           
@@ -256,28 +268,36 @@ export default function InvoiceDetailPage() {
           </div>
 
           <div className="flex flex-col sm:flex-row items-stretch sm:items-end gap-3 w-full md:w-auto">
-            <div className="flex flex-col flex-1 w-full sm:w-36 relative">
-              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Diskon (Rp)</label>
-              <input 
-                type="number" 
-                value={discountInput === 0 ? '' : discountInput}
-                onChange={(e) => setDiscountInput(Number(e.target.value))}
-                disabled={isPaid} 
-                placeholder="0"
-                className="w-full border-2 border-slate-200 rounded-xl px-3 py-2 text-sm font-black text-rose-600 focus:border-purple-500 outline-none disabled:bg-slate-50 disabled:text-slate-400 text-right"
-              />
-            </div>
+
+            {/* Input Diskon — hanya admin & atasan */}
+            {canEditDiscount && (
+              <div className="flex flex-col flex-1 w-full sm:w-36 relative">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Diskon (Rp)</label>
+                <input 
+                  type="number" 
+                  value={discountInput === 0 ? '' : discountInput}
+                  onChange={(e) => setDiscountInput(Number(e.target.value))}
+                  disabled={isPaid} 
+                  placeholder="0"
+                  className="w-full border-2 border-slate-200 rounded-xl px-3 py-2 text-sm font-black text-rose-600 focus:border-purple-500 outline-none disabled:bg-slate-50 disabled:text-slate-400 text-right"
+                />
+              </div>
+            )}
 
             <div className="flex items-center gap-2 flex-1 sm:flex-none">
-              <button 
-                onClick={handleSaveEdits}
-                disabled={isSavingAll || isPaid}
-                className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-slate-800 hover:bg-slate-900 text-white px-4 py-2 rounded-xl font-bold text-sm transition-colors disabled:opacity-30 disabled:cursor-not-allowed shadow-sm h-[40px]"
-              >
-                {isSavingAll ? '...' : '💾 Simpan'}
-              </button>
+              {/* Tombol Simpan — hanya admin & atasan */}
+              {canEditDiscount && (
+                <button 
+                  onClick={handleSaveEdits}
+                  disabled={isSavingAll || isPaid}
+                  className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-slate-800 hover:bg-slate-900 text-white px-4 py-2 rounded-xl font-bold text-sm transition-colors disabled:opacity-30 disabled:cursor-not-allowed shadow-sm h-[40px]"
+                >
+                  {isSavingAll ? '...' : '💾 Simpan'}
+                </button>
+              )}
 
-              {!isPaid && (
+              {/* Tombol Bayar — hanya atasan */}
+              {canRecordPayment && !isPaid && (
                 <button
                   onClick={() => { setPayAmount(balanceDue); setIsPaymentModalOpen(true); }}
                   className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl font-bold text-sm transition-colors shadow-emerald-600/30 shadow-lg h-[40px]"
@@ -287,12 +307,23 @@ export default function InvoiceDetailPage() {
               )}
             </div>
 
-            <button onClick={handlePrint} className="w-full sm:w-auto flex items-center justify-center gap-2 bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-xl font-bold text-sm transition-colors shadow-sm h-[40px] mt-2 sm:mt-0">
-              🖨️ Cetak PDF
-            </button>
+            {/* Tombol Cetak — hanya admin & atasan */}
+            {canPrint && (
+              <button onClick={handlePrint} className="w-full sm:w-auto flex items-center justify-center gap-2 bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-xl font-bold text-sm transition-colors shadow-sm h-[40px] mt-2 sm:mt-0">
+                🖨️ Cetak PDF
+              </button>
+            )}
           </div>
 
         </div>
+
+        {/* Info untuk admin: tombol bayar tidak tersedia */}
+        {userRole === 'admin' && !isPaid && (
+          <p className="mt-4 pt-3 border-t border-slate-100 text-[11px] text-slate-400 flex items-center gap-1.5">
+            <svg className="w-3.5 h-3.5 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+            Pencatatan pembayaran hanya dapat dilakukan oleh Atasan.
+          </p>
+        )}
       </div>
 
       {/* ── WRAPPER PDF KERTAS A4 ── */}
@@ -423,7 +454,6 @@ export default function InvoiceDetailPage() {
                 const qty = item.qty_billed || item.qty || 1;
                 const price = item.unit_price || 0;
                 const amount = item.total_price || (qty * price);
-
                 const noteTargetId = item.invoice_item_id || item.id;
 
                 return (
@@ -432,12 +462,12 @@ export default function InvoiceDetailPage() {
                     <td style={{ ...tdItem, verticalAlign: 'center' }}>{product?.part_code || '-'}</td>
                     <td style={{ ...tdItem, whiteSpace: 'normal', wordBreak: 'break-word', verticalAlign: 'top' }}>{product?.part_name || '-'}</td>
                     <td style={{ ...tdItem, textAlign: 'center', verticalAlign: 'top' }}>{qty}</td>
-                    <td style={{ ...tdItem,  verticalAlign: 'top' }}>
+                    <td style={{ ...tdItem, verticalAlign: 'top' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                         <span>Rp</span><span>{price.toLocaleString('id-ID')}</span>
                       </div>
                     </td>
-                    <td style={{ ...tdItem,  verticalAlign: 'top' }}>
+                    <td style={{ ...tdItem, verticalAlign: 'top' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                         <span>Rp</span><span>{amount.toLocaleString('id-ID')}</span>
                       </div>
@@ -451,7 +481,7 @@ export default function InvoiceDetailPage() {
                           e.target.style.height = 'auto';
                           e.target.style.height = e.target.scrollHeight + 'px';
                         }}
-                        disabled={isPaid}
+                        disabled={isPaid || !canEditDiscount}
                         placeholder=""
                         className="w-full bg-transparent border-none outline-none px-2 py-1.5 text-[10px] text-center focus:bg-purple-50 print:p-0 print:focus:bg-transparent disabled:text-black font-medium resize-none overflow-hidden"
                         style={{ minHeight: '26px' }}
@@ -475,14 +505,12 @@ export default function InvoiceDetailPage() {
                   <textarea 
                     value={invoiceNote}
                     onChange={(e) => setInvoiceNote(e.target.value)}
-                    disabled={isPaid}
+                    disabled={isPaid || !canEditDiscount}
                     className="w-full h-24 bg-transparent border-none outline-none resize-none text-[11px] leading-relaxed disabled:text-black font-medium"
                     placeholder="Tulis instruksi transfer di sini..."
                   />
                 </td>
-                <td style={{ border: borderCell, borderTop: '3px double #000', padding: '1px 1px', fontWeight: 700 }}>
-                  Sub Total
-                </td>
+                <td style={{ border: borderCell, borderTop: '3px double #000', padding: '1px 1px', fontWeight: 700 }}>Sub Total</td>
                 <td colSpan={2} style={{ border: borderCell, borderTop: '3px double #000', padding: '6px 8px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                     <span>Rp</span><span>{subTotal.toLocaleString('id-ID')}</span>
@@ -490,9 +518,7 @@ export default function InvoiceDetailPage() {
                 </td>
               </tr>
               <tr>
-                <td style={{ border: borderCell, padding: '6px 10px', fontWeight: 700 }}>
-                  Discount
-                </td>
+                <td style={{ border: borderCell, padding: '6px 10px', fontWeight: 700 }}>Discount</td>
                 <td colSpan={2} style={{ border: borderCell, padding: '6px 8px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', color: discountInput > 0 ? '#e11d48' : '#000' }}>
                     <span>Rp</span><span>{discountInput > 0 ? discountInput.toLocaleString('id-ID') : '-'}</span>
@@ -500,9 +526,7 @@ export default function InvoiceDetailPage() {
                 </td>
               </tr>
               <tr>
-                <td style={{ border: borderCell, padding: '6px 10px', fontWeight: 700 }}>
-                  Total
-                </td>
+                <td style={{ border: borderCell, padding: '6px 10px', fontWeight: 700 }}>Total</td>
                 <td colSpan={2} style={{ border: borderCell, padding: '6px 8px', fontWeight: 900 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                     <span>Rp</span><span>{grandTotal.toLocaleString('id-ID')}</span>
@@ -526,7 +550,7 @@ export default function InvoiceDetailPage() {
         </div>
       </div>
 
-      {/* ── RIWAYAT PEMBAYARAN (FORMAL & KAKU) ── */}
+      {/* ── RIWAYAT PEMBAYARAN ── */}
       {paymentsHistory.length > 0 && (
         <div className="print:hidden w-full max-w-[210mm] mx-auto bg-white border border-slate-300 shadow-sm mt-6 p-6 sm:p-8">
           <h3 className="text-sm font-bold text-slate-800 uppercase border-b-2 border-slate-800 pb-2 mb-4 tracking-wider">
@@ -578,8 +602,8 @@ export default function InvoiceDetailPage() {
         </div>
       )}
 
-      {/* ── MODAL INPUT PEMBAYARAN (FIX MOBILE SCROLL) ── */}
-      {isPaymentModalOpen && (
+      {/* ── MODAL INPUT PEMBAYARAN — hanya render jika canRecordPayment ── */}
+      {isPaymentModalOpen && canRecordPayment && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex justify-center p-4 print:hidden items-end sm:items-center sm:p-6 overflow-y-auto">
           <form onSubmit={handlePaymentSubmit} className="bg-white rounded-t-2xl sm:rounded-2xl w-full max-w-md shadow-2xl flex flex-col max-h-[90vh] my-auto animate-in slide-in-from-bottom-10 sm:scale-in-center duration-300">
             
@@ -588,12 +612,9 @@ export default function InvoiceDetailPage() {
                 <h2 className="text-xl font-black">Catat Uang Masuk</h2>
                 <p className="text-emerald-100 text-xs font-mono mt-0.5">{invoice?.invoice_number}</p>
               </div>
-              <button type="button" onClick={() => setIsPaymentModalOpen(false)} className="text-emerald-200 hover:text-white bg-emerald-700/50 hover:bg-emerald-700 p-2 rounded-lg transition-colors">
-                ✕
-              </button>
+              <button type="button" onClick={() => setIsPaymentModalOpen(false)} className="text-emerald-200 hover:text-white bg-emerald-700/50 hover:bg-emerald-700 p-2 rounded-lg transition-colors">✕</button>
             </div>
             
-            {/* AREA BISA DI-SCROLL */}
             <div className="p-6 space-y-5 overflow-y-auto custom-scrollbar">
               <div className="bg-amber-50 text-amber-800 p-4 rounded-xl text-center border border-amber-200 shadow-inner">
                 <span className="label-modern justify-center mb-1 text-amber-700/60">Sisa Tagihan (Piutang)</span>
@@ -626,7 +647,6 @@ export default function InvoiceDetailPage() {
                 </div>
               </div>
 
-              {/* 📸 INPUT BUKTI TRANSFER 📸 */}
               <div>
                 <label className="label-modern">Upload Bukti Transfer (Opsional)</label>
                 <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-slate-300 border-dashed rounded-xl hover:border-emerald-500 hover:bg-emerald-50/30 transition-colors cursor-pointer relative">
@@ -650,7 +670,6 @@ export default function InvoiceDetailPage() {
                   )}
                 </div>
               </div>
-
             </div>
             
             <div className="shrink-0 p-5 bg-slate-50 border-t border-slate-100 flex justify-end gap-3 rounded-b-2xl sm:rounded-b-2xl">
@@ -674,5 +693,5 @@ const thStyle: React.CSSProperties = {
 };
 
 const tdItem: React.CSSProperties = {
-  border: '1px solid #000', padding: '8px 7px ', fontSize: 11, verticalAlign: 'center', color: '#000',
+  border: '1px solid #000', padding: '8px 7px', fontSize: 11, verticalAlign: 'center', color: '#000',
 };
