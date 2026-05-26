@@ -106,7 +106,6 @@ export default function SalesOrderDetailPage() {
       const { data: rpcData, error: rpcError } = await supabase.rpc('generate_full_invoice_from_so', {
         p_so_id: id,
         p_due_date: formattedDueDate,
-        p_creator_id: null 
       });
 
       if (rpcError) throw rpcError;

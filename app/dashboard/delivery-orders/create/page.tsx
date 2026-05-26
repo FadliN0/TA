@@ -104,7 +104,6 @@ function CreateDOForm() {
         p_so_id: so_id,
         p_address_id: salesOrder.address_id,
         p_delivery_date: today,
-        p_creator_id: null, // Ganti dengan user.id jika Anda memakai Supabase Auth
         p_items: itemsPayload
       });
 
