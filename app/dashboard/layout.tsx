@@ -114,7 +114,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     { 
       name: 'Tracking Dokumen', 
       href: '/dashboard/tracking', // Sesuaikan dengan nama foldernya
-      allowedRoles: ['admin', 'atasan'], 
+      allowedRoles: [ 'manager'], 
       icon: '🔎' 
     },
     { 
@@ -126,7 +126,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     { 
       name: 'Manajemen Akun', 
       href: '/dashboard/users', 
-      allowedRoles: ['admin'], 
+      allowedRoles: ['admin', 'atasan'], 
       icon: ( <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /></svg> )
     },
     
@@ -159,7 +159,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         {/* Area Logo & Brand */}
         <div className="flex items-center gap-3 px-6 py-6 bg-slate-950/50 border-b border-slate-800">
           <div className="w-10 h-10 bg-white rounded-lg p-1 shrink-0">
-            <img src="/logo.png" alt="Logo" className="w-full h-full object-contain" />
+            <img src="/logo1.png" alt="Logo" className="w-full h-full object-contain" />
           </div>
           <div>
             <h2 className="font-black text-lg tracking-wide text-white leading-tight">CV HJP</h2>

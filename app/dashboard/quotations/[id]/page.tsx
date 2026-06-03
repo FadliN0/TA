@@ -122,39 +122,8 @@ export default function QuotationDetailPage() {
 
     setIsCreatingSO(true);
     try {
-      const today = new Date();
-      const yearMonth = `${today.getFullYear()}${String(today.getMonth() + 1).padStart(2, '0')}`;
-      const prefix = `SO-HJP-${yearMonth}-`;
-
-      const { data: lastDoc } = await supabase
-        .from('sales_orders')
-        .select('so_number')
-        .like('so_number', `${prefix}%`)
-        .order('so_number', { ascending: false })
-        .limit(1);
-
-      let nextSeq = 1;
-      if (lastDoc && lastDoc.length > 0) {
-        const lastNum = lastDoc[0].so_number;
-        const lastPart = lastNum.split('-').pop();
-        nextSeq = parseInt(lastPart || '0') + 1;
-      }
-      const newSoNumber = `${prefix}${String(nextSeq).padStart(3, '0')}`;
-
-      const { data: so, error: soErr } = await supabase.from('sales_orders').insert([{
-        so_number: newSoNumber,
-        quotation_id: id,
-        po_number: poInput.trim(),
-        customer_id: quotation.customer_id,
-        address_id: quotation.address_id,
-        grand_total: quotation.grand_total,
-        status: 'Open',
-      }]).select().single();
-
-      if (soErr) throw soErr;
-
-      const itemsToInsert = items.map(i => ({
-        so_id: so.id,
+      // 1. Siapkan payload barang sesuai format JSON yang diminta RPC
+      const itemsPayload = items.map(i => ({
         product_id: i.product_id,
         qty: i.qty,
         unit_price: i.unit_price,
@@ -162,14 +131,29 @@ export default function QuotationDetailPage() {
         total_price: i.total_price,
       }));
 
-      const { error: itemErr } = await supabase.from('sales_order_items').insert(itemsToInsert);
-      if (itemErr) throw itemErr;
+      // 2. Panggil RPC Supabase (Satu kali panggil, semua beres di database!)
+      const { data: rpcResult, error: rpcError } = await supabase.rpc('generate_sales_order', {
+        p_quotation_id: id,
+        p_po_number: poInput.trim(),
+        p_customer_id: quotation.customer_id,
+        p_address_id: quotation.address_id,
+        p_grand_total: quotation.grand_total,
+        p_items: itemsPayload
+      });
 
-      alert(`Sukses! Dokumen Sales Order ${newSoNumber} berhasil diterbitkan.`);
-      
-      // Update state existingSO agar halaman langsung terkunci tanpa perlu refresh
-      setExistingSO({ id: so.id, so_number: newSoNumber });
-      setIsPOModalOpen(false);
+      // Jika ada error dari PostgreSQL (misal: validasi gagal / error insert)
+      if (rpcError) throw new Error(rpcError.message);
+
+      // 3. Tangani hasil sukses
+      if (rpcResult && rpcResult.success) {
+        alert(`Sukses! Dokumen Sales Order ${rpcResult.so_number} berhasil diterbitkan.`);
+        
+        // Update state existingSO menggunakan data kembalian dari RPC
+        setExistingSO({ id: rpcResult.so_id, so_number: rpcResult.so_number });
+        setIsPOModalOpen(false);
+      } else {
+        throw new Error('Respons database tidak sesuai atau gagal memproses SO.');
+      }
       
     } catch (error: any) {
       console.error(error);
@@ -177,7 +161,7 @@ export default function QuotationDetailPage() {
     } finally {
       setIsCreatingSO(false);
     }
-  };
+};
 
   if (loading) return (
     <div className="flex flex-col items-center justify-center min-h-[50vh] gap-4">
