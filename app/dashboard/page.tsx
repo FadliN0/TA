@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
+import SalesTrendChart from '@/components/SalesTrendChart';
 
 export default function DashboardHome() {
   const [loading, setLoading] = useState(true);
@@ -24,17 +25,19 @@ export default function DashboardHome() {
         setUserName(session.user.email?.split('@')[0] || 'Admin');
       }
 
+      const now = new Date();
+      const currentMonth = now.getMonth();
+      const currentYear = now.getFullYear();
+
+      const sixMonthsAgo = new Date(currentYear, currentMonth - 5, 1).toISOString();
       const { data: allTrx, error } = await supabase
         .from('v_transaction_lifecycle')
         .select('*')
+        .or(`so_date.gte.${sixMonthsAgo},payment_status.neq.Paid,delivery_status.neq.Completed`) 
         .order('so_date', { ascending: false });
 
       if (error) throw error;
       const data = allTrx || [];
-
-      const now = new Date();
-      const currentMonth = now.getMonth();
-      const currentYear = now.getFullYear();
 
       let omset = 0;
       let piutang = 0;
@@ -54,32 +57,34 @@ export default function DashboardHome() {
 
       // --- LOOPING KALKULASI UTAMA ---
       data.forEach(trx => {
-        const trxDate = new Date(trx.so_date);
-        
-        // Pengaman: Jika null, ubah paksa jadi angka 0 agar tidak merusak rumus (NaN)
-        const total = Number(trx.total_order_value) || 0; 
+        // Ambil nilai dasar
         const paid = Number(trx.total_paid_amount) || 0;
+        const invTotal = Number(trx.invoice_total) || 0;
 
-        // 1. Hitung Omset Bulan Ini
-        if (trxDate.getMonth() === currentMonth && trxDate.getFullYear() === currentYear) {
-          omset += total;
-        }
+        if (trx.invoice_date && trx.invoice_status !== 'Uninvoiced') {
+          const invDate = new Date(trx.invoice_date);
+          
+          // 1. Hitung Omset Bulan Ini
+          if (invDate.getMonth() === currentMonth && invDate.getFullYear() === currentYear) {
+            omset += invTotal;
+          }
 
-        // 2. Hitung Piutang
-        if (total > paid) {
-          piutang += (total - paid);
-        }
+          // 2. Masukkan ke Grafik (Berdasarkan bulan terbitnya Invoice)
+          const key = `${invDate.getFullYear()}-${invDate.getMonth()}`;
+          if (chartMap.has(key)) {
+            const current = chartMap.get(key);
+            chartMap.set(key, { ...current, total: current.total + invTotal });
+          }
 
-        // 3. Hitung Pesanan Aktif (PERBAIKAN: Semua yang belum Completed)
+          // 3. Hitung Piutang (Hanya dari Invoice yang sudah terbit tapi belum lunas)
+          if (invTotal > paid) {
+            piutang += (invTotal - paid);
+          }
+        }  
+        
+        // 4. Hitung Pesanan Aktif (Semua SO yang pengirimannya belum selesai)
         if (trx.delivery_status !== 'Completed') {
           pesanan += 1;
-        }
-
-        // 4. Masukkan ke Grafik (Hanya jika tanggalnya masuk rentang 6 bulan terakhir)
-        const key = `${trxDate.getFullYear()}-${trxDate.getMonth()}`;
-        if (chartMap.has(key)) {
-          const current = chartMap.get(key);
-          chartMap.set(key, { ...current, total: current.total + total });
         }
       });
 
@@ -156,33 +161,7 @@ export default function DashboardHome() {
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
         
         {/* AREA GRAFIK */}
-        <div className="xl:col-span-2 bg-white p-6 rounded-2xl border border-gray-100 shadow-sm flex flex-col">
-          <h3 className="text-lg font-bold text-slate-800 mb-6">Tren Penjualan (6 Bulan Terakhir)</h3>
-          
-          <div className="flex-1 flex items-end gap-2 sm:gap-6 pt-4 h-64 border-b-2 border-gray-100 pb-2">
-            {chartData.map((data, idx) => {
-              const heightPercent = maxChartValue > 0 ? (data.total / maxChartValue) * 100 : 0;
-              return (
-                <div key={idx} className="flex-1 flex flex-col items-center gap-3 group relative">
-                  {/* Tooltip Hover (Hanya muncul jika di-hover) */}
-                  <div className="opacity-0 group-hover:opacity-100 absolute -top-10 bg-slate-800 text-white text-xs font-bold py-1 px-2 rounded pointer-events-none transition-opacity whitespace-nowrap z-10 shadow-lg">
-                    {fmtRp(data.total)}
-                  </div>
-                  
-                  {/* Batang Grafik */}
-                  <div className="w-full bg-blue-50 rounded-t-lg relative flex items-end justify-center group-hover:bg-blue-100 transition-colors" style={{ height: '100%' }}>
-                    <div 
-                      // Menggunakan min-height agar batang grafik sedikit terlihat meski nilainya sangat kecil
-                      className="w-full bg-blue-500 rounded-t-md transition-all duration-1000 ease-out group-hover:bg-blue-600" 
-                      style={{ height: `${heightPercent}%`, minHeight: data.total > 0 ? '4px' : '0' }}
-                    ></div>
-                  </div>
-                  <span className="text-xs font-bold text-slate-500">{data.bulan}</span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
+        <SalesTrendChart data={chartData} />
 
         {/* AREA TABEL RECENT TRANSACTIONS */}
         <div className="xl:col-span-1 bg-white p-6 rounded-2xl border border-gray-100 shadow-sm flex flex-col">
@@ -223,4 +202,8 @@ export default function DashboardHome() {
       </div>
     </div>
   );
+}
+
+function sixMonthsAgo() {
+  throw new Error('Function not implemented.');
 }

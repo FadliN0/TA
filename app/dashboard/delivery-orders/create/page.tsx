@@ -12,9 +12,13 @@ function CreateDOForm() {
 
   const [loading, setLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
-  
+
   const [salesOrder, setSalesOrder] = useState<any>(null);
   const [itemsToDeliver, setItemsToDeliver] = useState<any[]>([]);
+
+  // State untuk daftar alamat customer dan alamat terpilih
+  const [availableAddresses, setAvailableAddresses] = useState<any[]>([]);
+  const [selectedAddressId, setSelectedAddressId] = useState<string>('');
 
   useEffect(() => {
     if (so_id) fetchBackorderData();
@@ -23,14 +27,39 @@ function CreateDOForm() {
   const fetchBackorderData = async () => {
     setLoading(true);
     try {
+      // 1. Ambil data SO
       const { data: soData, error: soErr } = await supabase
         .from('sales_orders')
-        .select('*, customers(company_name), customer_addresses(complete_address, pic_name)')
+        .select('*, customers(company_name)')
         .eq('id', so_id)
         .single();
       if (soErr) throw soErr;
       setSalesOrder(soData);
 
+      // 2. Ambil semua alamat customer yang terhubung ke SO ini
+      if (soData?.customer_id) {
+        const { data: allAddresses, error: addrErr } = await supabase
+          .from('customer_addresses')
+          .select('*')
+          .eq('customer_id', soData.customer_id)
+          .order('is_default', { ascending: false }); // Alamat utama di atas
+
+        if (addrErr) throw addrErr;
+        if (allAddresses && allAddresses.length > 0) {
+          setAvailableAddresses(allAddresses);
+
+          // Pre-select: pakai alamat dari SO jika ada, kalau tidak pakai default
+          if (soData.address_id) {
+            const soAddr = allAddresses.find((a: any) => a.id === soData.address_id);
+            setSelectedAddressId(soAddr ? soAddr.id : allAddresses[0].id);
+          } else {
+            const defaultAddr = allAddresses.find((a: any) => a.is_default) || allAddresses[0];
+            setSelectedAddressId(defaultAddr.id);
+          }
+        }
+      }
+
+      // 3. Ambil sisa backorder
       const { data: backorders, error: boErr } = await supabase.rpc('get_remaining_backorder', { p_so_id: so_id });
       if (boErr) throw boErr;
 
@@ -55,7 +84,7 @@ function CreateDOForm() {
           part_code: productInfo?.part_code || '-',
           part_name: productInfo?.part_name || 'Unknown Part',
           unit: productInfo?.unit || 'PCS',
-          qty_to_deliver: bo.remaining_qty 
+          qty_to_deliver: bo.remaining_qty
         };
       });
 
@@ -80,7 +109,12 @@ function CreateDOForm() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
+    if (!selectedAddressId) {
+      alert('Pilih alamat pengiriman terlebih dahulu!');
+      return;
+    }
+
     // Filter hanya barang yang jumlah kirimnya lebih dari 0
     const finalItems = itemsToDeliver.filter(item => item.qty_to_deliver > 0);
     if (finalItems.length === 0) {
@@ -90,28 +124,24 @@ function CreateDOForm() {
 
     setIsSaving(true);
     try {
-      // 1. Siapkan data hari ini
       const today = new Date().toISOString().split('T')[0];
 
-      // 2. Petakan array items ke format JSON yang diminta Database
       const itemsPayload = finalItems.map(i => ({
         so_item_id: i.so_item_id,
         qty_delivered: i.qty_to_deliver
       }));
 
-      // 3. Panggil Stored Procedure, Database akan melakukan keajaibannya!
       const { data: rpcData, error: rpcError } = await supabase.rpc('create_do_transaction', {
         p_so_id: so_id,
-        p_address_id: salesOrder.address_id,
+        p_address_id: selectedAddressId,   // <-- pakai alamat yang dipilih user
         p_delivery_date: today,
         p_items: itemsPayload
       });
 
       if (rpcError) throw rpcError;
 
-      // 4. Berhasil! Arahkan ke halaman detail DO yang baru terbuat
       router.push(`/dashboard/delivery-orders/${rpcData.do_id}`);
-      
+
     } catch (error: any) {
       alert(`Gagal menyimpan: ${error.message || error.details}`);
     } finally {
@@ -126,9 +156,12 @@ function CreateDOForm() {
     </div>
   );
 
+  // Alamat yang sedang dipilih (untuk preview card)
+  const selectedAddress = availableAddresses.find(a => a.id === selectedAddressId);
+
   return (
     <div className="max-w-[1200px] mx-auto space-y-6 pb-10 animate-in fade-in duration-500">
-      
+
       {/* HEADER */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm border-l-4 border-l-teal-600">
         <div>
@@ -144,17 +177,117 @@ function CreateDOForm() {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
-        
-        {/* INFO BOX */}
+
+        {/* ── SECTION 1: PILIH ALAMAT PENGIRIMAN ── */}
+        <div className="card-modern p-6">
+          <div className="flex justify-between items-center border-b border-slate-100 pb-4 mb-5">
+            <div>
+              <h2 className="text-sm font-black text-slate-800 uppercase tracking-widest">1. Alamat Pengiriman (Ship To)</h2>
+              <p className="text-xs text-slate-500 mt-1">Pilih lokasi tujuan pengiriman barang untuk DO ini.</p>
+            </div>
+          </div>
+
+          {availableAddresses.length === 0 ? (
+            <div className="text-center py-6 text-slate-400 text-sm border-2 border-dashed rounded-xl">
+              Tidak ada alamat terdaftar untuk pelanggan ini.
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+              {availableAddresses.map((addr) => {
+                const isSelected = selectedAddressId === addr.id;
+                return (
+                  <button
+                    key={addr.id}
+                    type="button"
+                    onClick={() => setSelectedAddressId(addr.id)}
+                    className={`relative text-left p-5 rounded-2xl border-2 transition-all duration-200 focus:outline-none group ${
+                      isSelected
+                        ? 'border-teal-500 bg-teal-50 shadow-md shadow-teal-100 ring-2 ring-teal-500/20'
+                        : 'border-slate-200 bg-white hover:border-teal-300 hover:bg-slate-50/70'
+                    }`}
+                  >
+                    {/* Checkmark indicator */}
+                    <div className={`absolute top-3 right-3 w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all ${
+                      isSelected
+                        ? 'border-teal-500 bg-teal-500'
+                        : 'border-slate-300 group-hover:border-teal-300'
+                    }`}>
+                      {isSelected && (
+                        <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                        </svg>
+                      )}
+                    </div>
+
+                    {/* Badge type + default */}
+                    <div className="flex flex-wrap gap-1.5 mb-3 pr-6">
+                      <span className={`text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider border ${
+                        addr.address_type === 'Billing'
+                          ? 'bg-purple-100 text-purple-700 border-purple-200'
+                          : 'bg-orange-100 text-orange-700 border-orange-200'
+                      }`}>
+                        {addr.address_type}
+                      </span>
+                      {addr.is_default && (
+                        <span className="text-[9px] font-black bg-teal-600 text-white px-2 py-0.5 rounded-full uppercase tracking-wider">
+                          ★ Utama
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Alamat */}
+                    <p className={`text-xs font-semibold leading-relaxed mb-3 ${isSelected ? 'text-slate-800' : 'text-slate-600'}`}>
+                      {addr.complete_address}
+                    </p>
+
+                    {/* PIC */}
+                    <div className={`flex items-center gap-1.5 text-[10px] font-bold ${isSelected ? 'text-teal-700' : 'text-slate-500'}`}>
+                      <svg className="w-3 h-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                      </svg>
+                      {addr.pic_name}
+                      {addr.pic_phone && (
+                        <span className="text-slate-400 font-normal">• {addr.pic_phone}</span>
+                      )}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Preview alamat terpilih (ringkasan) */}
+          {selectedAddress && (
+            <div className="mt-4 flex items-start gap-3 bg-teal-50 border border-teal-200 p-4 rounded-xl">
+              <div className="mt-0.5 shrink-0 bg-teal-500 rounded-full p-1">
+                <svg className="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+              </div>
+              <div>
+                <p className="text-[10px] font-black text-teal-600 uppercase tracking-widest mb-0.5">Dikirim Ke</p>
+                <p className="text-sm font-bold text-slate-800">{selectedAddress.complete_address}</p>
+                <p className="text-xs text-teal-700 font-semibold mt-0.5">
+                  PIC: {selectedAddress.pic_name} {selectedAddress.pic_phone && `(${selectedAddress.pic_phone})`}
+                </p>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* ── INFO BOX ── */}
         <div className="bg-amber-50 border border-amber-200 p-4 rounded-xl flex gap-3 text-amber-800 shadow-sm">
-          <svg className="w-6 h-6 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+          <svg className="w-6 h-6 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
           <div className="text-sm">
-            <p className="font-black uppercase tracking-wider mb-1">Mode Pengiriman Parsial</p>
+            <p className="font-black uppercase tracking-wider mb-1">2. Mode Pengiriman Parsial</p>
             <p>Masukkan jumlah barang yang akan dikirim hari ini pada kolom <b>"Kirim Sekarang"</b>. Sistem akan mencatat sisanya sebagai <i>backorder</i> jika tidak dikirim penuh.</p>
           </div>
         </div>
 
-        {/* TABEL BARANG (RESPONSIVE CARD ON MOBILE) */}
+        {/* ── TABEL BARANG ── */}
         <div className="card-modern overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse min-w-[800px]">
@@ -179,8 +312,8 @@ function CreateDOForm() {
                     <td className="p-4 text-center font-bold text-rose-600 bg-rose-50/30">{item.remaining_qty}</td>
                     <td className="p-4">
                       <div className="flex items-center gap-3">
-                        <input 
-                          type="number" 
+                        <input
+                          type="number"
                           min="0"
                           max={item.remaining_qty}
                           value={item.qty_to_deliver}
@@ -197,12 +330,12 @@ function CreateDOForm() {
           </div>
         </div>
 
-        {/* FOOTER ACTION */}
+        {/* ── FOOTER ACTION ── */}
         <div className="flex justify-end pt-4">
-          <button 
-            type="submit" 
-            disabled={isSaving}
-            className="w-full md:w-auto flex items-center justify-center gap-3 bg-teal-600 hover:bg-teal-700 text-white font-black px-10 py-4 rounded-2xl shadow-lg shadow-teal-900/20 disabled:bg-slate-300 transition-all active:scale-95"
+          <button
+            type="submit"
+            disabled={isSaving || !selectedAddressId}
+            className="w-full md:w-auto flex items-center justify-center gap-3 bg-teal-600 hover:bg-teal-700 text-white font-black px-10 py-4 rounded-2xl shadow-lg shadow-teal-900/20 disabled:bg-slate-300 disabled:cursor-not-allowed transition-all active:scale-95"
           >
             {isSaving ? (
               <>
@@ -211,7 +344,9 @@ function CreateDOForm() {
               </>
             ) : (
               <>
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
                 TERBITKAN SURAT JALAN
               </>
             )}

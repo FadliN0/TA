@@ -28,7 +28,7 @@ export default function InvoiceDetailPage() {
   }, []);
 
   // ─── Permission flags ────────────────────
-  const canEditDiscount  = userRole === 'admin' || userRole === 'atasan';
+  const canEditDiscount  = userRole === 'admin';
   const canPrint         = userRole === 'admin' || userRole === 'atasan';
   const canRecordPayment = userRole === 'atasan';
   
