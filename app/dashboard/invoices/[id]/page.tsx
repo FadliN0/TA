@@ -416,7 +416,7 @@ export default function InvoiceDetailPage() {
               </div>
             </div>
             <div style={{ width: 90, height: 90, flexShrink: 0 }}>
-              <img src="/logo.png" alt="Logo" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+              <img src="/logo1.png" alt="Logo" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
             </div>
           </div>
 

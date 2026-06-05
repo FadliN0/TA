@@ -290,7 +290,7 @@ export default function QuotationDetailPage() {
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 8, marginBottom: 2 }}>
             <div style={{ width: 100, height: 65, flexShrink: 0 }}>
               <img
-                src="/logo.png"
+                src="/logo1.png"
                 alt="CV. HJP Logo"
                 style={{ width: '100%', height: '100%', objectFit: 'contain', objectPosition: 'left' }}
               />

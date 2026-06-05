@@ -233,7 +233,7 @@ export default function SalesOrderDetailPage() {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
               <div style={{ width: 80, height: 80, flexShrink: 0 }}>
-                <img src="/logo.png" alt="CV. HJP Logo" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                <img src="/logo1.png" alt="CV. HJP Logo" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
               </div>
               <div style={{ paddingTop: 4 }}>
                 <div style={{ fontSize: 13, fontWeight: 800, color: '#2c3e50', textTransform: 'uppercase', marginBottom: 4 }}>CV HARMONISINDO JAYA PART</div>

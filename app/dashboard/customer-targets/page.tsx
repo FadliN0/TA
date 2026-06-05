@@ -70,7 +70,7 @@ function CustTargetInput({ item, month, year, saving, onSave }: { item: any; mon
 
 // ─── MAIN COMPONENT ───────────────────────────────────────────────────────────
 export default function TargetManagementPage() {
-  // ... STATE DAN FUNGSI (Sama persis, tidak ada yang diubah) ...
+
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);

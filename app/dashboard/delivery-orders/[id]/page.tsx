@@ -184,7 +184,7 @@ export default function DeliveryOrderDetailPage() {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 28 }}>
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16 }}>
               <div style={{ width: 85, height: 85, flexShrink: 0 }}>
-                <img src="/logo.png" alt="Logo" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                <img src="/logo1.png" alt="Logo" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
               </div>
               <div style={{ paddingTop: 4 }}>
                 <div style={{ fontSize: 16, fontWeight: 900, color: '#000', marginBottom: 4, letterSpacing: 0.5 }}>CV HARMONISINDO JAYA PART</div>
