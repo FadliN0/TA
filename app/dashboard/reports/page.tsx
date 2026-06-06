@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
-// Import komponen dari file terpisah yang baru saja kita buat:
 import TransactionsTab from './components/TransactionsTab';
 import ProductsTab from './components/ProductsTab';
 

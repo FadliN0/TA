@@ -41,8 +41,7 @@ export default function TransactionsTab({ customersList }: { customersList: any[
   const fetchTransactions = async () => {
     setLoading(true);
     try {
-      // Panggil View yang sudah kita perbaiki tadi
-      let query = supabase
+       let query = supabase
         .from('view_finance_reports')
         .select('*')
         .gte('so_date', startDate)
