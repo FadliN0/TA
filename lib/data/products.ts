@@ -1,8 +1,7 @@
 import { createServerClient } from '@/lib/supabaseServer';
 
-const supabase = createServerClient();
-
 export async function fetchProducts() {
+  const supabase = createServerClient();
   const { data, error } = await supabase
     .from('products')
     .select('*')
@@ -12,6 +11,7 @@ export async function fetchProducts() {
 }
 
 export async function fetchProductById(id: string) {
+  const supabase = createServerClient();
   const { data, error } = await supabase
     .from('products')
     .select('*')
@@ -19,4 +19,4 @@ export async function fetchProductById(id: string) {
     .single();
   if (error) throw error;
   return data;
-}
+}   
