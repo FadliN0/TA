@@ -1,0 +1,22 @@
+import { createServerClient } from '@/lib/supabaseServer';
+
+const supabase = createServerClient();
+
+export async function fetchProducts() {
+  const { data, error } = await supabase
+    .from('products')
+    .select('*')
+    .order('part_code');
+  if (error) throw error;
+  return data;
+}
+
+export async function fetchProductById(id: string) {
+  const { data, error } = await supabase
+    .from('products')
+    .select('*')
+    .eq('id', id)
+    .single();
+  if (error) throw error;
+  return data;
+}

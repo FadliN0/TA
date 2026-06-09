@@ -19,39 +19,23 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   // === FUNGSI PENGECEKAN TIKET LOGIN ===
   useEffect(() => {
-    const checkAuth = async () => {
+          const loadRole = async () => {
       const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return; // middleware sudah handle redirect, ini tidak akan tercapai
       
-      if (!session) {
-        router.replace('/login');
-      } else {
-        setUserEmail(session.user.email || 'User');
-        
-        try {
-          // Ambil Role dari tabel profiles di Supabase
-          const { data: profileData, error } = await supabase
-            .from('profiles')
-            .select('role')
-            .eq('id', session.user.id)
-            .single();
-
-          if (error || !profileData?.role) {
-            throw new Error("Data jabatan tidak ditemukan");
-          }
-
-          setUserRole(profileData.role.toLowerCase()); 
-        } catch (err) {
-          // 👇 PATCH KEAMANAN (FAIL-CLOSED) 👇
-          // Jika gagal ambil role, JANGAN jadikan admin. 
-          // Jadikan 'unauthorized' agar semua akses menunya terkunci!
-          setUserRole('unauthorized');
-        } finally {
-          setIsChecking(false);
-        }
-      }
+      setUserEmail(session.user.email ?? '');
+      
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', session.user.id)
+        .single();
+      
+      setUserRole(profile?.role?.toLowerCase() ?? 'unauthorized');
+      setIsChecking(false);
     };
-    checkAuth();
-  }, [router, supabase]);
+    loadRole();
+  }, []);
 
   // === FUNGSI LOGOUT ===
   const handleLogout = async () => {

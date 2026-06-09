@@ -3,7 +3,6 @@ import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
 import { cookies } from 'next/headers';
 import TargetManagementClient from './TargetClient';
 
-// Memaksa Next.js untuk selalu mengambil data terbaru (tidak di-cache)
 export const dynamic = 'force-dynamic'; 
 
 export default async function TargetManagementPage({
