@@ -1,8 +1,9 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
+import { supabase } from '@/lib/supabase'; // Hanya dipertahankan untuk Kueri SELECT (Read-only) riwayat tren
+import { saveCompanyTargetAction, saveCustomerTargetAction } from './actions';
 
 // ─── ICONS ────────────────────────────────────────────────────────────────────
 const IconTarget = () => <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>;
@@ -43,7 +44,7 @@ const ProgressBar = ({ pct }: { pct: number }) => {
 };
 
 // ─── CUSTOMER TARGET INPUT ─────────────────────────────
-function CustTargetInput({ item, month, year, saving, onSave }: { item: any; month: number; year: number; saving: boolean; onSave: (id: string, tid: string | undefined, val: string) => void; }) {
+function CustTargetInput({ item, month, year, saving, onSave }: { item: any; month: number; year: number; saving: boolean; onSave: (id: string, val: string) => void; }) {
   const [val, setVal] = React.useState(item.target > 0 ? String(item.target) : '');
   const [dirty, setDirty] = React.useState(false);
 
@@ -52,7 +53,7 @@ function CustTargetInput({ item, month, year, saving, onSave }: { item: any; mon
     setDirty(false); 
   }, [item.target, month, year]);
 
-  const handleSave = () => { if (!val.trim() || !dirty) return; onSave(item.id, item.target_id, val); setDirty(false); };
+  const handleSave = () => { if (!val.trim() || !dirty) return; onSave(item.id, val); setDirty(false); };
 
   return (
     <div className="flex items-center gap-1">
@@ -137,6 +138,7 @@ export default function TargetManagementClient({
     setExpandedCustId(cust.id);
     setHistoryLoading(true);
     try {
+      // Pembacaan grafik histori tidak memerlukan mutasi, jadi bisa memakai client statis
       const { data } = await supabase.from('v_transaction_lifecycle').select('invoice_date, payment_status, total_order_value').eq('customer_id', cust.id).order('invoice_date', { ascending: false });
       const trend = [];
       for (let i = 5; i >= 0; i--) {
@@ -160,31 +162,33 @@ export default function TargetManagementClient({
     if (isNaN(num) || num < 0) { showError('Nilai target tidak valid.'); return; }
     setSaving(true); setSaveError(null);
     try {
-      const { error: upsertErr } = await supabase.from('company_targets').upsert({ month: initialMonth, year: initialYear, target_amount: num }, { onConflict: 'month,year' });
-      if (upsertErr) {
-        await supabase.from('company_targets').delete().eq('month', initialMonth).eq('year', initialYear);
-        const { error: insertErr } = await supabase.from('company_targets').insert({ month: initialMonth, year: initialYear, target_amount: num });
-        if (insertErr) throw insertErr;
-      }
+      // ─────────────────────────────────────────────────────────────────
+      // Menggunakan Server Action, bukan menembak DB langsung dari Klien
+      // ─────────────────────────────────────────────────────────────────
+      await saveCompanyTargetAction(initialMonth, initialYear, num);
       showSuccess('Company target berhasil disimpan ✓');
-      router.refresh(); // Meminta Server memperbarui props secara instan
-    } catch (err: any) { showError(`Error: ${err?.message}`); } finally { setSaving(false); }
+    } catch (err: any) { 
+      showError(`Error: ${err?.message}`); 
+    } finally { 
+      setSaving(false); 
+    }
   };
 
-  const saveCustTarget = async (custId: string, targetId: string | undefined, val: string) => {
+  const saveCustTarget = async (custId: string, val: string) => {
     const num = Number(val.trim());
     if (isNaN(num) || num < 0) { showError('Nilai target tidak valid.'); return; }
     setSaving(true); setSaveError(null);
     try {
-      const { error: upsertErr } = await supabase.from('customer_targets').upsert({ customer_id: custId, month: initialMonth, year: initialYear, target_amount: num }, { onConflict: 'customer_id,month,year' });
-      if (upsertErr) {
-        await supabase.from('customer_targets').delete().eq('customer_id', custId).eq('month', initialMonth).eq('year', initialYear);
-        const { error: insertErr } = await supabase.from('customer_targets').insert({ customer_id: custId, month: initialMonth, year: initialYear, target_amount: num });
-        if (insertErr) throw insertErr;
-      }
+      // ─────────────────────────────────────────────────────────────────
+      // Menggunakan Server Action, bukan menembak DB langsung dari Klien
+      // ─────────────────────────────────────────────────────────────────
+      await saveCustomerTargetAction(custId, initialMonth, initialYear, num);
       showSuccess('Target klien berhasil disimpan ✓');
-      router.refresh(); // Meminta Server memperbarui props secara instan
-    } catch (err: any) { showError(`Error: ${err?.message}`); } finally { setSaving(false); }
+    } catch (err: any) { 
+      showError(`Error: ${err?.message}`); 
+    } finally { 
+      setSaving(false); 
+    }
   };
 
   return (
@@ -216,7 +220,7 @@ export default function TargetManagementClient({
             <div>
               <div className="text-xs font-bold text-red-800 mb-0.5">Gagal Menyimpan</div>
               <div className="text-xs text-red-700">{saveError}</div>
-              <div className="text-[11px] text-red-500 mt-1">Kemungkinan RLS belum diizinkan untuk operasi tersebut.</div>
+              <div className="text-[11px] text-red-500 mt-1">Kemungkinan RLS belum diizinkan atau kesalahan server.</div>
             </div>
           </div>
         )}

@@ -19,9 +19,26 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   // === FUNGSI PENGECEKAN TIKET LOGIN ===
   useEffect(() => {
-          const loadRole = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) return; // middleware sudah handle redirect, ini tidak akan tercapai
+    const loadRole = async () => {
+      // 1. Ambil data session DAN tangkap error-nya
+      const { data: { session }, error } = await supabase.auth.getSession();
+
+      // 2. CEGAT ERROR NYANGKUT (Ini inti solusinya!)
+      if (error) {
+        console.error("Auth Error:", error.message);
+        if (error.message.includes('refresh_token_not_found') || error.name === 'AuthApiError') {
+          await supabase.auth.signOut(); // Bersihkan sisa token rusak
+          router.replace('/login'); // Paksa kembali ke login
+          return;
+        }
+      }
+
+      // 3. Fallback jika session kosong (jangan dibiarkan loading selamanya)
+      if (!session) {
+        setIsChecking(false); // Matikan loading
+        router.replace('/login'); // Jangan hanya mengandalkan middleware
+        return; 
+      }
       
       setUserEmail(session.user.email ?? '');
       
@@ -32,10 +49,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         .single();
       
       setUserRole(profile?.role?.toLowerCase() ?? 'unauthorized');
-      setIsChecking(false);
+      setIsChecking(false); // Selesai loading
     };
+
     loadRole();
-  }, []);
+  }, [router, supabase]); // Tambahkan dependency yang baik
 
   // === FUNGSI LOGOUT ===
   const handleLogout = async () => {
