@@ -1,5 +1,6 @@
 'use client';
 
+import { useToast } from '@/components/ui/Alert';
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
@@ -16,6 +17,7 @@ type ProductClientProps = { initialProducts: any[] };
 
 export default function ProductClient({ initialProducts }: ProductClientProps) {
   const router = useRouter();
+  const toast = useToast();
   const products = initialProducts;
   const loading = false;
   const [search, setSearch] = useState('');
@@ -102,9 +104,10 @@ export default function ProductClient({ initialProducts }: ProductClientProps) {
       if (!res.success) throw new Error(res.error);
 
       setIsModalOpen(false);
+      toast.success('Produk berhasil disimpan!', 'Sukses');
       router.refresh();
     } catch (error: any) {
-      alert(`Gagal menyimpan: ${error.message}`);
+      toast.error(`Gagal menyimpan: ${error.message}`, 'Error');
     } finally {
       setIsSaving(false);
     }
@@ -120,9 +123,10 @@ export default function ProductClient({ initialProducts }: ProductClientProps) {
 
     const res = await deleteProductAction(id);
     if (!res.success) {
-      alert(res.error);
+      toast.error(res.error ?? 'Terjadi kesalahan saat menghapus produk.', 'Gagal Menghapus');
       return;
     }
+    toast.info(`Produk ${part_name} telah dihapus.`)
     router.refresh();
   };
 

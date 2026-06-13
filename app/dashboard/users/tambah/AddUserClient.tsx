@@ -2,10 +2,12 @@
 
 import { useState } from 'react';
 import { createStaffAccount } from './actions';
+import { useToast } from '@/components/ui/Alert';
 
 export default function AddUserClient() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const toast = useToast();
   // Ubah default ke 'admin' huruf kecil
   const [role, setRole] = useState('admin');
   const [loading, setLoading] = useState(false);
@@ -18,13 +20,14 @@ export default function AddUserClient() {
     const result = await createStaffAccount(email, password, role);
 
     if (result.success) {
-      alert(
+      toast.success(
         `Berhasil! Akun ${email} siap digunakan dengan hak akses ${role.toUpperCase()}.`,
+        'Sukses'
       );
       setEmail('');
       setPassword('');
     } else {
-      alert(`Gagal membuat akun: ${result.error}`);
+      toast.error(`Gagal membuat akun: ${result.error}`, 'Error');
     }
 
     setLoading(false);

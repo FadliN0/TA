@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { useToast } from '@/components/ui/Alert';
 import { updateSalesOrderStatusAction, createInvoiceFromSoAction } from "./actions";
 
 export default function SalesOrderDetailClient({
@@ -22,6 +23,7 @@ export default function SalesOrderDetailClient({
 }) {
   const router = useRouter();
   const [salesOrder, setSalesOrder] = useState<any>(initialSalesOrder);
+  const toast = useToast();
   const [isCreatingInvoice, startInvoiceTransition] = useTransition();
   const [isUpdatingStatus, startStatusTransition] = useTransition();
 
@@ -29,14 +31,16 @@ export default function SalesOrderDetailClient({
 
   const handleUpdateStatus = (newStatus: string) => {
     if (newStatus === "Completed") {
-      alert(
+      toast.error(
         "Status Completed hanya bisa diubah otomatis oleh sistem ketika semua Surat Jalan (DO) sudah terkirim!",
+        "Error"
       );
       return;
     }
     if (newStatus === "Cancelled" && (hasDO || hasInvoice)) {
-      alert(
+      toast.error(
         "Tidak bisa membatalkan SO ini karena Surat Jalan (DO) atau Invoice sudah diterbitkan!",
+        "Error"
       );
       return;
     }
@@ -47,7 +51,7 @@ export default function SalesOrderDetailClient({
         setSalesOrder({ ...salesOrder, status: newStatus });
         router.refresh();
       } catch (error: any) {
-        alert(error.message);
+        toast.error(`Gagal mengupdate status: ${error.message}`, "Error");
       }
     });
   };
@@ -67,12 +71,13 @@ export default function SalesOrderDetailClient({
         const { invoice_number } = await createInvoiceFromSoAction(
           salesOrder.id,
         );
-        alert(
+        toast.success(
           `Luar biasa! Invoice ${invoice_number} berhasil digenerate oleh sistem.`,
+          "Success"
         );
         router.push("/dashboard/invoices");
       } catch (error: any) {
-        alert(`Gagal membuat Invoice: ${error.message}`);
+        toast.error(`Gagal membuat Invoice: ${error.message}`, "Error");
       }
     });
   };

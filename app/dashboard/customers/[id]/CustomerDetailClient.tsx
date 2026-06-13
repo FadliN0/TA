@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react';
 import Link from 'next/link';
 import { addAddress, updateAddress, deleteAddress } from './actions';
+import { useToast } from '@/components/ui/Alert';
 
 interface Address {
   id: string;
@@ -40,7 +41,8 @@ export default function CustomerDetailClient({ initialCustomer, initialAddresses
   const [modalMode, setModalMode] = useState<'add' | 'edit'>('add');
   const [addressForm, setAddressForm] = useState(emptyForm);
   const [error, setError] = useState<string | null>(null);
-
+  const toast = useToast();
+  
   const handleOpenAdd = () => {
     setError(null);
     setModalMode('add');
@@ -73,8 +75,10 @@ export default function CustomerDetailClient({ initialCustomer, initialAddresses
           await updateAddress(initialCustomer.id, addressForm.id, addressForm);
         }
         setIsModalOpen(false);
+        toast.success('Alamat berhasil disimpan!', 'Sukses');
       } catch (err: any) {
         setError(err.message);
+        toast.error(`Gagal menyimpan alamat: ${err.message}`, 'Error');
       }
     });
   };
@@ -83,6 +87,7 @@ export default function CustomerDetailClient({ initialCustomer, initialAddresses
     if (!window.confirm('Hapus lokasi pengiriman ini?')) return;
     startTransition(async () => {
       await deleteAddress(initialCustomer.id, addrId);
+      toast.success('Alamat berhasil dihapus!', 'Sukses');
     });
   };
 

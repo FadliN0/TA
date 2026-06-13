@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { deleteQuotationAction } from './actions';
+import { useToast } from '@/components/ui/Alert';
 
 type QuotationClientProps = { initialQuotations: any[] };
 
@@ -14,6 +15,7 @@ export default function QuotationClient({
   const quotations = initialQuotations;
   const loading = false;
   const [search, setSearch] = useState('');
+  const toast = useToast();
 
   const handleDelete = async (id: string, qNumber: string) => {
     const isConfirm = window.confirm(
@@ -23,9 +25,10 @@ export default function QuotationClient({
 
     const res = await deleteQuotationAction(id);
     if (!res.success) {
-      alert(`Gagal menghapus: ${res.error}`);
+      toast.error(`Gagal menghapus: ${res.error}`, 'Error');
       return;
     }
+    toast.success('Berhasil menghapus dokumen', 'Success');
     router.refresh();
   };
 

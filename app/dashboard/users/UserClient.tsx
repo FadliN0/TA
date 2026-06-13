@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useToast } from "@/components/ui/Alert";
 import Link from 'next/link';
 import { getUsers, updateUserPassword } from './actions';
 
@@ -18,6 +19,7 @@ export default function UserClient({
   const [users, setUsers] = useState<UserProfile[]>(initialUsers);
   const [loadingUsers, setLoadingUsers] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const toast = useToast();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
@@ -46,10 +48,10 @@ export default function UserClient({
     setUpdatingPassword(true);
     const result = await updateUserPassword(selectedUser.id, newPassword);
     if (result.success) {
-      alert(`Berhasil! Sandi untuk ${selectedUser.email} telah diperbarui.`);
+      toast.success(`Berhasil! Sandi untuk ${selectedUser.email} telah diperbarui.`, 'Sukses');
       setIsModalOpen(false);
     } else {
-      alert(`Gagal mengubah sandi: ${result.error}`);
+      toast.error(`Gagal mengubah sandi: ${result.error}`, 'Error');
     }
     setUpdatingPassword(false);
   };

@@ -4,11 +4,13 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import Link from "next/link";
+import { useToast } from "@/components/ui/Alert";
 import {
   saveInvoiceEditsAction,
   recordPaymentAction,
   cancelInvoiceAction,
 } from "./actions";
+
 
 type InvoiceDetailClientProps = {
   invoice: any;
@@ -33,6 +35,7 @@ export default function InvoiceDetailClient({
   // Role: dibaca persis sama seperti di dashboard/layout.tsx
   const supabaseClient = createClientComponentClient();
   const [userRole, setUserRole] = useState<string | null>(null);
+  
 
   useEffect(() => {
     const fetchRole = async () => {
@@ -55,7 +58,7 @@ export default function InvoiceDetailClient({
   const canPrint = userRole === "admin" || userRole === "atasan";
   const canRecordPayment = userRole === "atasan";
   const canCancelInvoice = userRole === "admin" || userRole === "atasan";
-
+  const toast = useToast();
   // State Pembayaran
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [isSubmittingPayment, setIsSubmittingPayment] = useState(false);
@@ -132,10 +135,10 @@ export default function InvoiceDetailClient({
         itemNotes: noteUpdates,
       });
       if (!res.success) throw new Error(res.error);
-      alert("Diskon dan Catatan berhasil disimpan!");
+      toast.success("Diskon dan Catatan berhasil disimpan!", "Success");
       router.refresh();
     } catch (error: any) {
-      alert(`Gagal menyimpan: ${error.message}`);
+      toast.error(`Gagal menyimpan: ${error.message}`, "Error");
     } finally {
       setIsSavingAll(false);
     }
@@ -144,10 +147,11 @@ export default function InvoiceDetailClient({
   const handlePaymentSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!canRecordPayment || isCancelled) return;
-    if (payAmount <= 0) return alert("Nominal harus lebih dari 0");
+    if (payAmount <= 0) return toast.error("Nominal harus lebih dari 0", "Error");
     if (payAmount > balanceDue)
-      return alert(
+      return toast.error(
         `Nominal melebihi sisa tagihan! Maksimal: Rp ${balanceDue.toLocaleString("id-ID")}`,
+        "Error"
       );
 
     setIsSubmittingPayment(true);
@@ -161,14 +165,14 @@ export default function InvoiceDetailClient({
         referenceNumber: payRef || null,
       });
       if (!res.success) throw new Error(res.error);
-      alert("Pembayaran berhasil dicatat!");
+      toast.success("Pembayaran berhasil dicatat!", "Success");
       setIsPaymentModalOpen(false);
       setPayAmount(0);
       setPayRef("");
       setPaymentProofFile(null);
       router.refresh();
     } catch (error: any) {
-      alert(`Gagal mencatat pembayaran: ${error.message}`);
+      toast.error(`Gagal mencatat pembayaran: ${error.message}`, "Error");
     } finally {
       setIsSubmittingPayment(false);
     }
@@ -177,17 +181,18 @@ export default function InvoiceDetailClient({
   const handleCancelSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!canCancelInvoice) return;
-    if (!cancelReason.trim()) return alert("Alasan pembatalan wajib diisi!");
+    if (!cancelReason.trim()) return toast.error("Alasan pembatalan wajib diisi!", "Error");
 
     setIsSubmittingCancel(true);
     try {
       const res = await cancelInvoiceAction(id, cancelReason);
       if (!res.success) throw new Error(res.error);
-      alert("Invoice berhasil dibatalkan!");
+      
+      toast.success("Invoice berhasil dibatalkan!", "Success");
       setIsCancelModalOpen(false);
       router.refresh();
     } catch (error: any) {
-      alert(`Gagal membatalkan invoice: ${error.message}`);
+      toast.error(`Gagal membatalkan invoice: ${error.message}`, "Error");
     } finally {
       setIsSubmittingCancel(false);
     }

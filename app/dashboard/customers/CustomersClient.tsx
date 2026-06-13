@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react';
 import Modal from '@/components/ui/Modal';
 import { addCustomer, updateCustomer, deleteCustomer } from './actions';
+import { useToast } from '@/components/ui/Alert';
 
 interface Address {
   id: string;
@@ -42,6 +43,7 @@ export default function CustomersClient({ initialCustomers }: Props) {
   const [modalMode, setModalMode] = useState<'add' | 'edit'>('add');
   const [formData, setFormData] = useState(emptyForm);
   const [error, setError] = useState<string | null>(null);
+  const toast = useToast();
 
   const filteredCustomers = initialCustomers.filter(c =>
     c.company_name?.toLowerCase().includes(search.toLowerCase()) ||
@@ -94,9 +96,11 @@ export default function CustomersClient({ initialCustomers }: Props) {
         } else {
           await updateCustomer(formData);
         }
+        toast.success('Pelanggan berhasil disimpan!', 'Sukses');
         setIsModalOpen(false);
       } catch (err: any) {
         setError(err.message);
+        toast.error(`Gagal menyimpan pelanggan: ${err.message}`, 'Error');
       }
     });
   };
@@ -106,8 +110,9 @@ export default function CustomersClient({ initialCustomers }: Props) {
     startTransition(async () => {
       try {
         await deleteCustomer(id);
+        toast.success('Pelanggan berhasil dihapus!', 'Sukses');
       } catch {
-        alert('Gagal menghapus. Pelanggan ini sedang digunakan di dokumen transaksi.');
+        toast.error('Gagal menghapus. Pelanggan ini sedang digunakan di dokumen transaksi.', 'Error');
       }
     });
   };

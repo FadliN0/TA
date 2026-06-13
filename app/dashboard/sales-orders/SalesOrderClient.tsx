@@ -3,11 +3,13 @@
 import { useState, useTransition } from 'react';
 import Link from 'next/link';
 import { deleteSalesOrderAction } from './actions';
+import { useToast } from '@/components/ui/Alert';
 
 export default function SalesOrderClient({ salesOrders }: { salesOrders: any[] }) {
   const [search, setSearch] = useState('');
   const [isPending, startTransition] = useTransition();
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const toast = useToast();
 
   const handleDelete = (id: string, soNumber: string) => {
     const isConfirm = window.confirm(
@@ -20,7 +22,7 @@ export default function SalesOrderClient({ salesOrders }: { salesOrders: any[] }
       try {
         await deleteSalesOrderAction(id);
       } catch (err: any) {
-        alert(`Gagal menghapus: ${err.message}`);
+        toast.error(`Gagal menghapus: ${err.message}`, "Error");
       } finally {
         setDeletingId(null);
       }

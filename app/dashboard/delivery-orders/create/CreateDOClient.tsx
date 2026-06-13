@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { createDeliveryOrderAction } from './actions';
+import { useToast } from '@/components/ui/Alert';
 
 export default function CreateDOClient({
   soId,
@@ -18,6 +19,7 @@ export default function CreateDOClient({
   initialItems: any[];
   preselectedAddressId: string;
 }) {
+  const toast = useToast();
   const router = useRouter();
   const [isSaving, setIsSaving] = useState(false);
   const [itemsToDeliver, setItemsToDeliver] = useState<any[]>(initialItems);
@@ -37,13 +39,13 @@ export default function CreateDOClient({
     e.preventDefault();
 
     if (!selectedAddressId) {
-      alert('Pilih alamat pengiriman terlebih dahulu!');
+      toast.error('Pilih alamat pengiriman terlebih dahulu!', 'Error');
       return;
     }
 
     const finalItems = itemsToDeliver.filter((item) => item.qty_to_deliver > 0);
     if (finalItems.length === 0) {
-      alert('Isi minimal 1 barang yang dikirim sekarang!');
+      toast.error('Isi minimal 1 barang yang dikirim sekarang!', 'Error');
       return;
     }
 
@@ -57,7 +59,7 @@ export default function CreateDOClient({
       const res = await createDeliveryOrderAction(soId, selectedAddressId, itemsPayload);
       router.push(`/dashboard/delivery-orders/${res.do_id}`);
     } catch (error: any) {
-      alert(`Gagal menyimpan: ${error.message}`);
+      toast.error(`Gagal menyimpan: ${error.message}`, 'Error');
     } finally {
       setIsSaving(false);
     }
