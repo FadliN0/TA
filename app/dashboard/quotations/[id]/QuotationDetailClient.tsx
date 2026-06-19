@@ -16,7 +16,7 @@ const tdBase: React.CSSProperties = {
 };
 const tdLabel: React.CSSProperties = {
   ...tdBase,
-  width: 58,
+  width: 50,
   whiteSpace: "nowrap",
 };
 const tdColon: React.CSSProperties = { ...tdBase, width: 10, paddingRight: 6 };
@@ -462,15 +462,15 @@ export default function QuotationDetailClient({
             }}
           >
             <colgroup>
-              <col style={{ width: 26 }} /> {/* No */}
-              <col style={{ width: 82 }} /> {/* Part Number */}
+              <col style={{ width: 30 }} /> {/* No */}
+              <col style={{ width: 90 }} /> {/* Part Number */}
               <col /> {/* Description */}
-              <col style={{ width: 26 }} /> {/* Qty */}
+              <col style={{ width: 32 }} /> {/* Qty */}
               <col style={{ width: 32 }} /> {/* Unit */}
-              <col style={{ width: 98 }} /> {/* Unit Price */}
-              <col style={{ width: 30 }} /> {/* Disc */}
-              <col style={{ width: 98 }} /> {/* Amount */}
-              <col style={{ width: 58 }} /> {/* Remark */}
+              <col style={{ width: 90 }} /> {/* Unit Price */}
+              <col style={{ width: 32 }} /> {/* Disc */}
+              <col style={{ width: 90 }} /> {/* Amount */}
+              <col style={{ width: 60 }} /> {/* Remark */}
             </colgroup>
             <thead>
               <tr>
@@ -631,7 +631,7 @@ export default function QuotationDetailClient({
                   margin: 0,
                   fontSize: 11,
                   fontWeight: 700,
-                  textTransform: "uppercase",
+                  textTransform: "capitalize",
                   textDecoration: "underline",
                 }}
               >
@@ -646,7 +646,7 @@ export default function QuotationDetailClient({
                   margin: 0,
                   fontSize: 11,
                   fontWeight: 700,
-                  textTransform: "uppercase",
+                  textTransform: "capitalize",
                   textDecoration: "underline",
                 }}
               >

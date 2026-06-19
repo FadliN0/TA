@@ -67,8 +67,8 @@ export default function DeliveryOrderDetailClient({
           className="bg-white shadow-xl border border-slate-200 print:shadow-none print:border-none mx-auto relative overflow-hidden"
           style={{
             width: '210mm',
-            minHeight: '297mm',
-            padding: '36px 48px',
+            minHeight: '290mm',
+            padding: '64px 72px',
             fontFamily: 'Arial, Helvetica, sans-serif',
             fontSize: 12,
             color: '#000',
@@ -95,7 +95,7 @@ export default function DeliveryOrderDetailClient({
               {/* Teks Kiri */}
               <div>
                 <div style={{ fontSize: 16, fontWeight: 900, color: '#000', marginBottom: 4, letterSpacing: 0.5 }}>CV HARMONISINDO JAYA PART</div>
-                <div style={{ fontSize: 10, color: '#000', lineHeight: 1.5 }}>
+                <div style={{ fontSize: 11, color: '#000', lineHeight: 1.5 }}>
                   SOHO CAPITAL lantai. 32 unit 7 Jl. Letjen S. Parman<br />
                   Kav. 28, Kelurahan Tanjung Duren Selatan<br />
                   Kec. Grogol Petamburan, Jakarta Barat
@@ -115,8 +115,8 @@ export default function DeliveryOrderDetailClient({
             </div>
 
           {/* ===== ALAMAT TO & KIRIM KE ===== */}
-          <div style={{ marginBottom: 24, fontSize: 11 }}>
-            <table style={{ borderCollapse: 'collapse', width: '100%' }}>
+          <div style={{ marginBottom: 24, fontSize: 11, width: '55%' }}>
+            <table style={{ borderCollapse: 'collapse', width: '100%', tableLayout: 'fixed' }}>
               <tbody>
                 <tr>
                   <td style={{ width: 45, verticalAlign: 'top' }}>To</td>
@@ -126,7 +126,7 @@ export default function DeliveryOrderDetailClient({
                 <tr>
                   <td></td>
                   <td></td>
-                  <td style={{ paddingBottom: 6, lineHeight: 1.4, whiteSpace: 'pre-wrap', maxWidth: '300px', wordBreak: 'break-word' }}>
+                  <td style={{ paddingBottom: 6, lineHeight: 1.4, whiteSpace: 'pre-wrap',  wordBreak: 'break-word' }}>
                     {billingAddress?.complete_address || shippingAddress?.complete_address || '-'}
                   </td>
                 </tr>
@@ -155,7 +155,7 @@ export default function DeliveryOrderDetailClient({
                 </tr>
                 <tr>
                   <td></td><td></td>
-                  <td style={{ lineHeight: 1.4, whiteSpace: 'pre-wrap', maxWidth: '300px', wordBreak: 'break-word' }}>
+                  <td style={{ lineHeight: 1.4, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
                     {shippingAddress?.complete_address || '-'}
                   </td>
                 </tr>
@@ -226,26 +226,26 @@ export default function DeliveryOrderDetailClient({
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 16, pageBreakInside: 'avoid', marginTop: 16 }}>
             <div style={{ textAlign: 'center' }}>
               <p style={{ margin: 0, fontSize: 10, color: '#555' }}>Receipt By,</p>
-              <div style={{ height: 86 }} />
+              <div style={{ height: 120 }} />
               <p style={{ margin: 0, fontSize: 11, fontWeight: 'bold' }}>Nama jelas &</p>
               <p style={{ margin: 0, fontSize: 11, fontWeight: 'bold' }}>Stample</p>
             </div>
 
             <div style={{ textAlign: 'center' }}>
               <p style={{ margin: 0, fontSize: 10, color: '#555' }}>Dikirim oleh,</p>
-              <div style={{ height: 86 }} />
+              <div style={{ height: 120 }} />
               <p style={{ margin: 0, fontSize: 11 }}>........................</p>
             </div>
 
             <div style={{ textAlign: 'center' }}>
               <p style={{ margin: 0, fontSize: 10, color: '#555' }}>Dibuat oleh,</p>
-              <div style={{ height: 86 }} />
+              <div style={{ height: 120 }} />
               <p style={{ margin: 0, fontSize: 11, fontWeight: 'bold', textDecoration: 'underline' }}>Fatin</p>
             </div>
 
             <div style={{ textAlign: 'center' }}>
               <p style={{ margin: 0, fontSize: 10, color: '#555' }}>Diketahui oleh,</p>
-              <div style={{ height: 86 }} />
+              <div style={{ height: 120 }} />
               <p style={{ margin: 0, fontSize: 11, fontWeight: 'bold', textDecoration: 'underline' }}>Hana Khamila</p>
             </div>
           </div>

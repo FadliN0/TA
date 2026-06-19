@@ -1,10 +1,12 @@
 "use client";
-
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { useToast } from '@/components/ui/Alert';
-import { updateSalesOrderStatusAction, createInvoiceFromSoAction } from "./actions";
+import { useToast } from "@/components/ui/Alert";
+import {
+  updateSalesOrderStatusAction,
+  createInvoiceFromSoAction,
+} from "./actions";
 
 export default function SalesOrderDetailClient({
   salesOrder: initialSalesOrder,
@@ -33,18 +35,17 @@ export default function SalesOrderDetailClient({
     if (newStatus === "Completed") {
       toast.error(
         "Status Completed hanya bisa diubah otomatis oleh sistem ketika semua Surat Jalan (DO) sudah terkirim!",
-        "Error"
+        "Error",
       );
       return;
     }
     if (newStatus === "Cancelled" && (hasDO || hasInvoice)) {
       toast.error(
         "Tidak bisa membatalkan SO ini karena Surat Jalan (DO) atau Invoice sudah diterbitkan!",
-        "Error"
+        "Error",
       );
       return;
     }
-
     startStatusTransition(async () => {
       try {
         await updateSalesOrderStatusAction(salesOrder.id, newStatus);
@@ -65,7 +66,6 @@ export default function SalesOrderDetailClient({
       "Buat Invoice Penagihan resmi untuk pesanan ini?",
     );
     if (!confirm) return;
-
     startInvoiceTransition(async () => {
       try {
         const { invoice_number } = await createInvoiceFromSoAction(
@@ -73,7 +73,7 @@ export default function SalesOrderDetailClient({
         );
         toast.success(
           `Luar biasa! Invoice ${invoice_number} berhasil digenerate oleh sistem.`,
-          "Success"
+          "Success",
         );
         router.push("/dashboard/invoices");
       } catch (error: any) {
@@ -82,15 +82,21 @@ export default function SalesOrderDetailClient({
     });
   };
 
+  const isStatusLocked =
+    salesOrder.status === "Completed" || hasDO || hasInvoice;
+  const isActionable =
+    salesOrder.status !== "Cancelled" && salesOrder.status !== "Completed";
+
   return (
     <div className="w-full max-w-[1200px] mx-auto space-y-6 pb-10 print:m-0 print:p-0 print:max-w-none text-black relative">
-      {/* ── KONTROL UI (GAYA MODERN FIT TO A4) ── */}
-      <div className="print:hidden w-full max-w-[210mm] mx-auto card-modern p-5 md:p-6 border-l-4 border-l-slate-800 animate-in fade-in slide-in-from-top-4 duration-500 mb-6">
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
-          {/* Kiri: Tombol Kembali & Dropdown Status */}
-          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 w-full md:w-auto">
+      {/* KONTROL UI (GAYA MODERN FIT TO A4) */}
+      <div className="print:hidden w-full max-w-[210mm] mx-auto card-modern p-4 sm:p-5 md:p-6 border-l-4 border-l-slate-800 animate-in fade-in slide-in-from-top-4 duration-500 mb-6">
+        <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4 md:gap-6">
+          {/* Kiri: Tombol Kembali & Status (sejajar di mobile) */}
+          <div className="flex flex-row items-center gap-3 sm:gap-4 w-full md:w-auto">
             <Link
               href="/dashboard/sales-orders"
+              aria-label="Kembali"
               className="inline-flex items-center justify-center p-3 bg-slate-50 hover:bg-slate-100 text-slate-500 rounded-xl transition-colors border border-slate-200 shrink-0"
             >
               <svg
@@ -107,21 +113,17 @@ export default function SalesOrderDetailClient({
                 />
               </svg>
             </Link>
-
-            <div className="w-full sm:w-auto">
+            <div className="min-w-0">
               <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">
                 Status SO
               </span>
               <select
                 value={salesOrder.status}
                 onChange={(e) => handleUpdateStatus(e.target.value)}
-                disabled={
-                  salesOrder.status === "Completed" ||
-                  hasDO ||
-                  hasInvoice ||
-                  isUpdatingStatus
-                }
-                className={`input-modern font-bold ${salesOrder.status === "Completed" || hasDO || hasInvoice ? "opacity-80 cursor-not-allowed" : ""}`}
+                disabled={isStatusLocked || isUpdatingStatus}
+                className={`input-modern font-bold h-[42px] w-full sm:w-44 ${
+                  isStatusLocked ? "opacity-80 cursor-not-allowed" : ""
+                }`}
               >
                 <option value="Open">Open</option>
                 <option value="Processing">Processing</option>
@@ -134,86 +136,127 @@ export default function SalesOrderDetailClient({
           </div>
 
           {/* Kanan: Action Buttons */}
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-end gap-3 w-full md:w-auto">
-            <div className="flex items-center gap-2 flex-1 sm:flex-none">
-              {/* Logika DO */}
-              {salesOrder.status !== "Cancelled" &&
-              salesOrder.status !== "Completed" &&
-              !hasDO ? (
-                <button
-                  onClick={handleCreateDO}
-                  className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl font-bold text-sm transition-colors shadow-emerald-600/30 shadow-lg h-[40px]"
-                >
-                  <svg
-                    className="w-4 h-4"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
+          <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center md:justify-end gap-2.5 w-full md:w-auto">
+            {(isActionable || hasDO || hasInvoice) && (
+              <div className="flex items-center gap-2.5 w-full sm:w-auto">
+                {isActionable && !hasDO ? (
+                  <button
+                    onClick={handleCreateDO}
+                    className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 h-[42px] px-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-sm transition-colors shadow-sm"
                   >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
-                    />
-                  </svg>
-                  Buat DO
-                </button>
-              ) : hasDO ? (
-                <Link
-                  href="/dashboard/delivery-orders"
-                  className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 px-4 py-2 rounded-xl font-bold text-sm transition-colors h-[40px]"
-                >
-                  ✓ Lihat DO
-                </Link>
-              ) : null}
+                    <svg
+                      className="w-4 h-4"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M9 17a2 2 0 11-4 0 2 2 0 014 0zm10 0a2 2 0 11-4 0 2 2 0 014 0z"
+                      />
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h1m8-1h-3m3 0h2a1 1 0 001-1v-3.586a1 1 0 00-.293-.707l-2.414-2.414A1 1 0 0016.586 8H13v8z"
+                      />
+                    </svg>
+                    Buat DO
+                  </button>
+                ) : hasDO ? (
+                  <Link
+                    href="/dashboard/delivery-orders"
+                    className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 h-[42px] px-4 bg-white hover:bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-xl font-bold text-sm transition-colors"
+                  >
+                    <svg
+                      className="w-4 h-4"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M5 13l4 4L19 7"
+                      />
+                    </svg>
+                    Lihat DO
+                  </Link>
+                ) : null}
 
-              {/* Logika Invoice */}
-              {salesOrder.status !== "Cancelled" &&
-              salesOrder.status !== "Completed" &&
-              !hasInvoice ? (
-                <button
-                  onClick={handleCreateInvoice}
-                  disabled={isCreatingInvoice}
-                  className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl font-bold text-sm transition-colors shadow-blue-600/30 shadow-lg h-[40px] disabled:opacity-60"
-                >
-                  <svg
-                    className="w-4 h-4"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
+                {isActionable && !hasInvoice ? (
+                  <button
+                    onClick={handleCreateInvoice}
+                    disabled={isCreatingInvoice}
+                    className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 h-[42px] px-4 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-sm transition-colors shadow-sm disabled:opacity-60"
                   >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                    />
-                  </svg>
-                  {isCreatingInvoice ? "Memproses..." : "Buat INV"}
-                </button>
-              ) : hasInvoice ? (
-                <Link
-                  href="/dashboard/invoices"
-                  className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 px-4 py-2 rounded-xl font-bold text-sm transition-colors h-[40px]"
-                >
-                  ✓ Lihat INV
-                </Link>
-              ) : null}
-            </div>
+                    <svg
+                      className="w-4 h-4"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                      />
+                    </svg>
+                    {isCreatingInvoice ? "Memproses…" : "Buat INV"}
+                  </button>
+                ) : hasInvoice ? (
+                  <Link
+                    href="/dashboard/invoices"
+                    className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 h-[42px] px-4 bg-white hover:bg-blue-50 text-blue-700 border border-blue-200 rounded-xl font-bold text-sm transition-colors"
+                  >
+                    <svg
+                      className="w-4 h-4"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M5 13l4 4L19 7"
+                      />
+                    </svg>
+                    Lihat INV
+                  </Link>
+                ) : null}
+              </div>
+            )}
 
             {/* Tombol Print */}
             <button
               onClick={handlePrint}
-              className="w-full sm:w-auto flex items-center justify-center gap-2 bg-slate-800 hover:bg-slate-900 text-white px-4 py-2 rounded-xl font-bold text-sm transition-colors shadow-sm h-[40px] mt-2 sm:mt-0"
+              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 h-[42px] px-4 bg-slate-800 hover:bg-slate-900 text-white rounded-xl font-bold text-sm transition-colors shadow-sm"
             >
-              🖨️ Cetak PDF
+              <svg
+                className="w-4 h-4"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm0-12V5a2 2 0 012-2h2a2 2 0 012 2v4H9z"
+                />
+              </svg>
+              Cetak PDF
             </button>
           </div>
         </div>
       </div>
 
-      {/* ── WRAPPER PDF (KERTAS A4) ── */}
+      {/* WRAPPER PDF (KERTAS A4) */}
       <div className="w-full overflow-x-auto pb-8 custom-scrollbar print:overflow-visible print:pb-0">
         {/* KERTAS A4 */}
         <div
@@ -366,6 +409,7 @@ export default function SalesOrderDetailClient({
                 </tr>
               </tbody>
             </table>
+
             <table style={{ width: "100%", borderCollapse: "collapse" }}>
               <tbody>
                 <tr>
@@ -685,7 +729,7 @@ export default function SalesOrderDetailClient({
   );
 }
 
-/* ─── Style helpers ─── */
+/* Style helpers */
 const tdBase: React.CSSProperties = {
   padding: "2px 0",
   verticalAlign: "top",
