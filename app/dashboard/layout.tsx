@@ -114,6 +114,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       icon: ( <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg> )
     },
     { 
+      name: 'Pelanggan', 
+      href: '/dashboard/reports', 
+      allowedRoles: ['admin', 'atasan'], 
+      icon: ( <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg> )
+    },
+    { 
       name: 'Tracking Dokumen', 
       href: '/dashboard/tracking', // Sesuaikan dengan nama foldernya
       allowedRoles: [ 'manager'], 
@@ -164,7 +170,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <img src="/logo1.png" alt="Logo" className="w-full h-full object-contain" />
           </div>
           <div>
-            <h2 className="font-black text-lg tracking-wide text-white leading-tight">CV HJP</h2>
+            <h2 className="font-black text-lg tracking-wide text-white leading-tight">H-Part</h2>
             <p className="text-[10px] text-slate-400 font-medium uppercase tracking-widest">Administration</p>
           </div>
         </div>
@@ -225,7 +231,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <div className="w-8 h-8 bg-white rounded p-0.5">
               <img src="/logo.png" alt="Logo" className="w-full h-full object-contain" />
             </div>
-            <span className="font-black text-lg">CV HJP</span>
+            <span className="font-black text-lg">H-Part</span>
           </div>
           <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="p-2 text-slate-300 hover:text-white">
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">

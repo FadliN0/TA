@@ -84,11 +84,11 @@ export default function DeliveryOrderDetailClient({
 
           {/* ===== HEADER ===== */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 28 }}>
-            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 16 }}>
               <div style={{ width: 85, height: 85, flexShrink: 0 }}>
                 <img src="/logo1.png" alt="Logo" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
               </div>
-              <div style={{ paddingTop: 4 }}>
+              <div>
                 <div style={{ fontSize: 16, fontWeight: 900, color: '#000', marginBottom: 4, letterSpacing: 0.5 }}>CV HARMONISINDO JAYA PART</div>
                 <div style={{ fontSize: 10, color: '#000', lineHeight: 1.5 }}>
                   SOHO CAPITAL lantai. 32 unit 7 Jl. Letjen S. Parman<br />
@@ -118,8 +118,9 @@ export default function DeliveryOrderDetailClient({
                   <td style={{ fontWeight: 700, fontSize: 12, textTransform: 'uppercase' }}>{customer?.company_name}</td>
                 </tr>
                 <tr>
-                  <td></td><td></td>
-                  <td style={{ paddingBottom: 6, lineHeight: 1.4, whiteSpace: 'pre-wrap' }}>
+                  <td></td>
+                  <td></td>
+                  <td style={{ paddingBottom: 6, lineHeight: 1.4, whiteSpace: 'pre-wrap', maxWidth: '300px', wordBreak: 'break-word' }}>
                     {billingAddress?.complete_address || shippingAddress?.complete_address || '-'}
                   </td>
                 </tr>
@@ -128,7 +129,7 @@ export default function DeliveryOrderDetailClient({
                   <td style={{ verticalAlign: 'top' }}>:</td>
                   <td style={{ paddingBottom: 16 }}>
                     {billingAddress?.pic_name || shippingAddress?.pic_name || '-'}
-                    {billingAddress?.pic_phone ? ` (${billingAddress.pic_phone})` : shippingAddress?.pic_phone ? ` (${shippingAddress.pic_phone})` : ''}
+                    {billingAddress?.pic_phone ? ` ${billingAddress.pic_phone}` : shippingAddress?.pic_phone ? ` ${shippingAddress.pic_phone}` : ''}
                   </td>
                 </tr>
                 <tr>
@@ -136,11 +137,11 @@ export default function DeliveryOrderDetailClient({
                   <td style={{ verticalAlign: 'top' }}>:</td>
                   <td style={{ paddingBottom: 6 }}>
                     {shippingAddress?.pic_name || '-'}
-                    {shippingAddress?.pic_phone ? ` (${shippingAddress.pic_phone})` : ''}
+                    {shippingAddress?.pic_phone ? ` ${shippingAddress.pic_phone}` : ''}
                   </td>
                 </tr>
                 <tr>
-                  <td colSpan={3} style={{ fontWeight: 700, paddingBottom: 4 }}>Kirim Ke :</td>
+                  <td colSpan={3} style={{ fontWeight: 700, paddingBottom: 4 }}>Deliver To :</td>
                 </tr>
                 <tr>
                   <td></td><td></td>
@@ -148,7 +149,7 @@ export default function DeliveryOrderDetailClient({
                 </tr>
                 <tr>
                   <td></td><td></td>
-                  <td style={{ lineHeight: 1.4, whiteSpace: 'pre-wrap' }}>
+                  <td style={{ lineHeight: 1.4, whiteSpace: 'pre-wrap', maxWidth: '300px', wordBreak: 'break-word' }}>
                     {shippingAddress?.complete_address || '-'}
                   </td>
                 </tr>

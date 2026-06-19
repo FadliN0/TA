@@ -30,7 +30,7 @@ export default function DashboardClient({ userName, kpi, recentTrx, chartData }:
       <div className="flex justify-between items-end bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
         <div>
           <h1 className="text-2xl font-black text-slate-800">{getGreeting()}, <span className="text-blue-600 capitalize">{userName}</span>! 👋</h1>
-          <p className="text-sm text-slate-500 mt-1">Berikut adalah ringkasan performa operasional CV. HJP hari ini.</p>
+          <p className="text-sm text-slate-500 mt-1">Berikut adalah ringkasan performa operasional hari ini.</p>
         </div>
         <div className="text-right hidden md:block">
           <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Tanggal Hari Ini</p>

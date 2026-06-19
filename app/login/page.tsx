@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import Image from 'next/image';
+import { useToast } from '@/components/ui/Alert';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -12,6 +13,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const toast = useToast();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -29,6 +31,7 @@ export default function LoginPage() {
       router.refresh();
       router.push('/dashboard');
     } catch (err: any) {
+      toast.error(`Gagal masuk: ${err.message}`, "Error");
       console.error('Error dari Supabase:', err);
       setError(err.message || 'Gagal terhubung ke server.');
     } finally {
@@ -56,8 +59,8 @@ export default function LoginPage() {
               className="mx-auto"
             />
           </div>
-          <h1 className="text-2xl font-bold text-slate-800 tracking-tight">CV HJP</h1>
-          <p className="text-sm text-slate-500 mt-1">Sistem Administrasi B2B · Vendor Sparepart</p>
+          <h1 className="text-2xl font-bold text-slate-800 tracking-tight">H-Part</h1>
+          <p className="text-sm text-slate-500 mt-1">Sistem Administrasi · Harmonisindo Jaya Part</p>
         </div>
 
         {/* Card */}
@@ -163,7 +166,7 @@ export default function LoginPage() {
         </div>
 
         <p className="text-center text-xs text-slate-400 mt-5">
-          © {new Date().getFullYear()} CV HJP · Vendor Sparepart Industri
+          © {new Date().getFullYear()} CV. HJP · Vendor Sparepart Industri
         </p>
       </div>
     </div>
