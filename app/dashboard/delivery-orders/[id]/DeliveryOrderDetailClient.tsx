@@ -83,11 +83,16 @@ export default function DeliveryOrderDetailClient({
           )}
 
           {/* ===== HEADER ===== */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 28 }}>
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 16 }}>
-              <div style={{ width: 85, height: 85, flexShrink: 0 }}>
-                <img src="/logo1.png" alt="Logo" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
-              </div>
+            
+            {/* 1. Logo dipisah dan diletakkan di atas */}
+            <div style={{ width: 85, height: 60, marginBottom: 0 }}>
+              <img src="/logo1.png" alt="Logo" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+            </div>
+
+            {/* 2. Kontainer Flex baru khusus untuk menyejajarkan Teks Kiri dan Teks Kanan */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              
+              {/* Teks Kiri */}
               <div>
                 <div style={{ fontSize: 16, fontWeight: 900, color: '#000', marginBottom: 4, letterSpacing: 0.5 }}>CV HARMONISINDO JAYA PART</div>
                 <div style={{ fontSize: 10, color: '#000', lineHeight: 1.5 }}>
@@ -96,17 +101,18 @@ export default function DeliveryOrderDetailClient({
                   Kec. Grogol Petamburan, Jakarta Barat
                 </div>
               </div>
-            </div>
 
-            <div style={{ textAlign: 'right' }}>
-              <div style={{ fontSize: 20, fontWeight: 900, letterSpacing: 1, marginBottom: 8 }}>DELIVERY ORDER</div>
-              <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 4 }}>{deliveryOrder.do_number}</div>
-              <div style={{ fontSize: 11, marginBottom: 4 }}>
-                {new Date(deliveryOrder.delivery_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' })}
+              {/* Teks Kanan */}
+              <div style={{ textAlign: 'right' }}>
+                <div style={{ fontSize: 20, fontWeight: 900, letterSpacing: 1, marginBottom: 4 }}>DELIVERY ORDER</div>
+                <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 2 }}>{deliveryOrder.do_number}</div>
+                <div style={{ fontSize: 11, marginBottom: 2 }}>
+                  {new Date(deliveryOrder.delivery_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' })}
+                </div>
+                <div style={{ fontSize: 10, color: '#444', fontWeight: 'bold' }}>REF PO: {salesOrder?.po_number?.toUpperCase() || '-'}</div>
               </div>
-              <div style={{ fontSize: 10, color: '#444', fontWeight: 'bold' }}>REF PO: {salesOrder?.po_number?.toUpperCase() || '-'}</div>
+              
             </div>
-          </div>
 
           {/* ===== ALAMAT TO & KIRIM KE ===== */}
           <div style={{ marginBottom: 24, fontSize: 11 }}>

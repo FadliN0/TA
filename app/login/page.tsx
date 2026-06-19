@@ -56,7 +56,7 @@ export default function LoginPage() {
               className="mx-auto"
             />
           </div>
-          <h1 className="text-2xl font-bold text-slate-800 tracking-tight">H-Part</h1>
+          <h1 className="text-2xl font-bold text-amber-500 tracking-tight">H!-Part</h1>
           <p className="text-sm text-slate-500 mt-1">Sistem Administrasi · Harmonisisndo Jaya Part</p>
         </div>
 
