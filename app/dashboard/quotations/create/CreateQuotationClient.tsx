@@ -34,7 +34,7 @@ export default function CreateQuotationClient({
   const [selectedCustomerId, setSelectedCustomerId] = useState("");
   const [selectedAddressId, setSelectedAddressId] = useState("");
   const [mrNumber, setMrNumber] = useState("");
-  const [notes, setNotes] = useState("Ready Stock\nFranco Site");
+  const [notes, setNotes] = useState("Ready Stock\nFranco GTS");
 
   const [items, setItems] = useState([
     {

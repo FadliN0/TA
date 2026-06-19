@@ -11,7 +11,6 @@ import {
   cancelInvoiceAction,
 } from "./actions";
 
-
 type InvoiceDetailClientProps = {
   invoice: any;
   salesOrder: any;
@@ -35,7 +34,6 @@ export default function InvoiceDetailClient({
   // Role: dibaca persis sama seperti di dashboard/layout.tsx
   const supabaseClient = createClientComponentClient();
   const [userRole, setUserRole] = useState<string | null>(null);
-  
 
   useEffect(() => {
     const fetchRole = async () => {
@@ -73,6 +71,9 @@ export default function InvoiceDetailClient({
   const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
   const [cancelReason, setCancelReason] = useState("");
   const [isSubmittingCancel, setIsSubmittingCancel] = useState(false);
+
+  // State menu aksi (overflow "lainnya")
+  const [isActionMenuOpen, setIsActionMenuOpen] = useState(false);
 
   // State Editor
   const [discountInput, setDiscountInput] = useState<number>(
@@ -147,11 +148,12 @@ export default function InvoiceDetailClient({
   const handlePaymentSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!canRecordPayment || isCancelled) return;
-    if (payAmount <= 0) return toast.error("Nominal harus lebih dari 0", "Error");
+    if (payAmount <= 0)
+      return toast.error("Nominal harus lebih dari 0", "Error");
     if (payAmount > balanceDue)
       return toast.error(
         `Nominal melebihi sisa tagihan! Maksimal: Rp ${balanceDue.toLocaleString("id-ID")}`,
-        "Error"
+        "Error",
       );
 
     setIsSubmittingPayment(true);
@@ -181,13 +183,14 @@ export default function InvoiceDetailClient({
   const handleCancelSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!canCancelInvoice) return;
-    if (!cancelReason.trim()) return toast.error("Alasan pembatalan wajib diisi!", "Error");
+    if (!cancelReason.trim())
+      return toast.error("Alasan pembatalan wajib diisi!", "Error");
 
     setIsSubmittingCancel(true);
     try {
       const res = await cancelInvoiceAction(id, cancelReason);
       if (!res.success) throw new Error(res.error);
-      
+
       toast.success("Invoice berhasil dibatalkan!", "Success");
       setIsCancelModalOpen(false);
       router.refresh();
@@ -219,7 +222,7 @@ export default function InvoiceDetailClient({
       {/* ── PANEL KONTROL ADMIN ── */}
       <div className="print:hidden w-full max-w-[210mm] mx-auto card-modern p-5 md:p-6 border-l-4 border-l-purple-500 animate-in fade-in slide-in-from-top-4 duration-500 mb-6">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 w-full md:w-auto">
+          <div className="flex flex-row items-center gap-3 sm:gap-4 w-full md:w-auto">
             <Link
               href="/dashboard/invoices"
               className="inline-flex items-center justify-center p-3 bg-slate-50 hover:bg-slate-100 text-slate-500 rounded-xl transition-colors border border-slate-200 shrink-0"
@@ -266,69 +269,156 @@ export default function InvoiceDetailClient({
             </div>
           </div>
 
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-end gap-3 w-full md:w-auto">
-            {/* Input Diskon — hanya admin & atasan */}
+          {/* ── TOOLBAR AKSI (RAPI) ── */}
+          <div className="flex flex-col sm:flex-row sm:flex-wrap items-stretch sm:items-center justify-start md:justify-end gap-2.5 w-full md:w-auto">
+            {/* Input Diskon — hanya admin */}
             {canEditDiscount && (
-              <div className="flex flex-col flex-1 w-full sm:w-36 relative">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">
-                  Diskon (Rp)
-                </label>
+              <div className="relative flex items-center">
+                <span className="pointer-events-none absolute left-3 text-[11px] font-bold text-slate-400">
+                  Rp
+                </span>
                 <input
                   type="number"
                   value={discountInput === 0 ? "" : discountInput}
                   onChange={(e) => setDiscountInput(Number(e.target.value))}
                   disabled={!isEditable}
-                  placeholder="0"
-                  className="w-full border-2 border-slate-200 rounded-xl px-3 py-2 text-sm font-black text-rose-600 focus:border-purple-500 outline-none disabled:bg-slate-50 disabled:text-slate-400 text-right"
+                  placeholder="Diskon"
+                  title="Diskon (Rp)"
+                  className="w-full sm:w-36 h-[42px] border border-slate-200 bg-slate-50/60 rounded-xl pl-8 pr-3 text-sm font-bold text-rose-600 placeholder:text-slate-300 placeholder:font-medium focus:bg-white focus:border-purple-400 focus:ring-2 focus:ring-purple-100 outline-none disabled:opacity-50 text-right transition-all"
                 />
               </div>
             )}
 
-            <div className="flex items-center gap-2 flex-1 sm:flex-none">
-              {/* [TAMBAHAN CANCEL INVOICE] Tombol Batal Invoice */}
-              {canCancelInvoice && !isPaid && !isCancelled && (
-                <button
-                  onClick={() => setIsCancelModalOpen(true)}
-                  className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-white hover:bg-rose-50 text-rose-600 border-2 border-rose-200 hover:border-rose-300 px-3 py-2 rounded-xl font-bold text-sm transition-colors shadow-sm h-[40px]"
-                >
-                  🚫 Batalkan
-                </button>
-              )}
-
-              {/* Tombol Simpan — hanya admin & atasan */}
+            {/* Grup tombol aksi — satu baris penuh di mobile */}
+            <div className="flex items-center gap-2.5 w-full sm:w-auto">
+              {/* Tombol Simpan — sekunder */}
               {canEditDiscount && !isCancelled && (
                 <button
                   onClick={handleSaveEdits}
                   disabled={isSavingAll || !isEditable}
-                  className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-slate-800 hover:bg-slate-900 text-white px-4 py-2 rounded-xl font-bold text-sm transition-colors disabled:opacity-30 disabled:cursor-not-allowed shadow-sm h-[40px]"
+                  title="Simpan perubahan diskon & catatan"
+                  className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 h-[42px] px-3.5 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-xl font-semibold text-sm transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                 >
-                  {isSavingAll ? "..." : "💾 Simpan"}
+                  <svg
+                    className="w-4 h-4"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M5 13l4 4L19 7"
+                    />
+                  </svg>
+                  <span>{isSavingAll ? "Menyimpan…" : "Simpan"}</span>
                 </button>
               )}
 
-              {/* Tombol Bayar — hanya atasan */}
+              {/* Tombol Bayar — utama (atasan) */}
               {canRecordPayment && !isPaid && !isCancelled && (
                 <button
                   onClick={() => {
                     setPayAmount(balanceDue);
                     setIsPaymentModalOpen(true);
                   }}
-                  className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl font-bold text-sm transition-colors shadow-emerald-600/30 shadow-lg h-[40px]"
+                  className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 h-[42px] px-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-sm transition-colors shadow-lg shadow-emerald-600/25"
                 >
-                  💰 Bayar
+                  <svg
+                    className="w-4 h-4"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M3 10h18M7 15h1m4 0h1m-7 4h12a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
+                    />
+                  </svg>
+                  Bayar
                 </button>
               )}
-            </div>
 
-            {/* Tombol Cetak — hanya admin & atasan */}
-            {canPrint && (
-              <button
-                onClick={handlePrint}
-                className="w-full sm:w-auto flex items-center justify-center gap-2 bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-xl font-bold text-sm transition-colors shadow-sm h-[40px] mt-2 sm:mt-0"
-              >
-                🖨️ Cetak PDF
-              </button>
-            )}
+              {/* Tombol Cetak — utama */}
+              {canPrint && (
+                <button
+                  onClick={handlePrint}
+                  className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 h-[42px] px-4 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-bold text-sm transition-colors shadow-lg shadow-purple-600/25"
+                >
+                  <svg
+                    className="w-4 h-4"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm0-12V5a2 2 0 012-2h2a2 2 0 012 2v4H9z"
+                    />
+                  </svg>
+                  Cetak PDF
+                </button>
+              )}
+
+              {/* Menu "lainnya" — menyembunyikan aksi destruktif (Batalkan) */}
+              {canCancelInvoice && !isPaid && !isCancelled && (
+                <div className="relative">
+                  <button
+                    onClick={() => setIsActionMenuOpen((v) => !v)}
+                    aria-label="Aksi lainnya"
+                    className="shrink-0 inline-flex items-center justify-center h-[42px] w-[42px] bg-white hover:bg-slate-50 text-slate-500 border border-slate-200 rounded-xl transition-colors"
+                  >
+                    <svg
+                      className="w-5 h-5"
+                      fill="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <circle cx="12" cy="5" r="1.6" />
+                      <circle cx="12" cy="12" r="1.6" />
+                      <circle cx="12" cy="19" r="1.6" />
+                    </svg>
+                  </button>
+
+                  {isActionMenuOpen && (
+                    <>
+                      <div
+                        className="fixed inset-0 z-40"
+                        onClick={() => setIsActionMenuOpen(false)}
+                      />
+                      <div className="absolute right-0 top-[calc(100%+6px)] z-50 w-56 bg-white border border-slate-200 rounded-xl shadow-xl py-1.5 animate-in fade-in slide-in-from-top-1 duration-150">
+                        <button
+                          onClick={() => {
+                            setIsActionMenuOpen(false);
+                            setIsCancelModalOpen(true);
+                          }}
+                          className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm font-semibold text-rose-600 hover:bg-rose-50 transition-colors"
+                        >
+                          <svg
+                            className="w-4 h-4"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M18.364 5.636L5.636 18.364M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                            />
+                          </svg>
+                          Batalkan Invoice
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
@@ -540,8 +630,15 @@ export default function InvoiceDetailClient({
                         <td style={{ fontWeight: 700 }}>:</td>
                         <td style={{ paddingBottom: 3 }}>
                           {billingAddress?.pic_phone
-                            ? `(+62) ${billingAddress.pic_phone}`
+                            ? ` ${billingAddress.pic_phone}`
                             : "-"}
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style={{ fontWeight: 700 }}>Email</td>
+                        <td style={{ fontWeight: 700 }}>:</td>
+                        <td style={{ paddingBottom: 3 }}>
+                          {billingAddress?.pic_email || "-"}
                         </td>
                       </tr>
                     </tbody>
@@ -582,9 +679,9 @@ export default function InvoiceDetailClient({
                         <td style={{ paddingBottom: 3 }}>Cash</td>
                       </tr>
                       <tr>
-                        <td style={{ paddingBottom: 40 }}>Delivery Terms</td>
-                        <td style={{ paddingBottom: 40 }}>:</td>
-                        <td style={{ paddingBottom: 40 }}>Franco Site</td>
+                        <td style={{ paddingBottom: 32 }}>Delivery Terms</td>
+                        <td style={{ paddingBottom: 32 }}>:</td>
+                        <td style={{ paddingBottom: 32 }}>Franco GTS</td>
                       </tr>
                       <tr>
                         <td>Page</td>
@@ -764,7 +861,7 @@ export default function InvoiceDetailClient({
                   style={{
                     border: borderCell,
                     borderTop: "3px double #000",
-                    padding: "1px 1px",
+                    padding: "6px 10px",
                     fontWeight: 700,
                   }}
                 >
@@ -884,7 +981,7 @@ export default function InvoiceDetailClient({
               >
                 Hana Khamila
               </p>
-              <p style={{ margin: 0, fontSize: baseSize }}>Finance</p>
+              <p style={{ margin: 0, fontSize: baseSize }}>Direktur</p>
             </div>
           </div>
         </div>
