@@ -170,7 +170,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <img src="/logo1.png" alt="Logo" className="w-full h-full object-contain" />
           </div>
           <div>
-            <h2 className="font-black text-lg tracking-wide text-white leading-tight">H-Part</h2>
+            <h2 className="font-black text-lg tracking-wide text-orange-500 leading-tight">H-Part</h2>
             <p className="text-[10px] text-slate-400 font-medium uppercase tracking-widest">Administration</p>
           </div>
         </div>
