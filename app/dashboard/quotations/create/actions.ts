@@ -16,6 +16,20 @@ type CreateQuotationPayload = {
   items: any[];
 };
 
+export async function getCustomerAddressesAction(customerId: string) {
+  const supabase = createServerClient();
+  const { data, error } = await supabase
+    .from('customer_addresses')
+    .select('*')
+    .eq('customer_id', customerId);
+
+  if (error) {
+    console.error('Gagal mengambil alamat:', error.message);
+    return [];
+  }
+  return data || [];
+}
+
 export async function createQuotationAction(
   payload: CreateQuotationPayload,
 ): Promise<ActionResult> {

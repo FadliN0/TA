@@ -85,8 +85,8 @@ export default function DeliveryOrderDetailClient({
           {/* ===== HEADER ===== */}
             
             {/* 1. Logo dipisah dan diletakkan di atas */}
-            <div style={{ width: 85, height: 60, marginBottom: 0 }}>
-              <img src="/logo1.png" alt="Logo" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+            <div style={{ width: 120, height: 100, flexShrink: 0 }}>
+              <img src="/logo1.png" alt="Logo" style={{ width: '100%', height: '120%', objectFit: 'contain' }} />
             </div>
 
             {/* 2. Kontainer Flex baru khusus untuk menyejajarkan Teks Kiri dan Teks Kanan */}
@@ -94,8 +94,8 @@ export default function DeliveryOrderDetailClient({
               
               {/* Teks Kiri */}
               <div>
-                <div style={{ fontSize: 16, fontWeight: 900, color: '#000', marginBottom: 4, letterSpacing: 0.5 }}>CV HARMONISINDO JAYA PART</div>
-                <div style={{ fontSize: 11, color: '#000', lineHeight: 1.5 }}>
+                <div style={{ fontSize: 16, fontWeight: 800, color: '#000', marginBottom: 1, letterSpacing: 0.5 }}>CV HARMONISINDO JAYA PART</div>
+                <div style={{ fontSize: 12, color: '#000', lineHeight: 1.5 }}>
                   SOHO CAPITAL lantai. 32 unit 7 Jl. Letjen S. Parman<br />
                   Kav. 28, Kelurahan Tanjung Duren Selatan<br />
                   Kec. Grogol Petamburan, Jakarta Barat
@@ -104,9 +104,9 @@ export default function DeliveryOrderDetailClient({
 
               {/* Teks Kanan */}
               <div style={{ textAlign: 'right' }}>
-                <div style={{ fontSize: 20, fontWeight: 900, letterSpacing: 1, marginBottom: 4 }}>DELIVERY ORDER</div>
-                <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 2 }}>{deliveryOrder.do_number}</div>
-                <div style={{ fontSize: 11, marginBottom: 2 }}>
+                <div style={{ fontSize: 20, fontWeight: 800, letterSpacing: 1, marginBottom: 1 }}>DELIVERY ORDER</div>
+                <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 1 }}>{deliveryOrder.do_number}</div>
+                <div style={{ fontSize: 12, marginBottom: 2 }}>
                   {new Date(deliveryOrder.delivery_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' })}
                 </div>
                 <div style={{ fontSize: 10, color: '#444', fontWeight: 'bold' }}>REF PO: {salesOrder?.po_number?.toUpperCase() || '-'}</div>
@@ -115,7 +115,7 @@ export default function DeliveryOrderDetailClient({
             </div>
 
           {/* ===== ALAMAT TO & KIRIM KE ===== */}
-          <div style={{ marginBottom: 24, fontSize: 11, width: '55%' }}>
+          <div style={{ marginBottom: 24,marginTop: 5, fontSize: 11, width: '55%' }}>
             <table style={{ borderCollapse: 'collapse', width: '100%', tableLayout: 'fixed' }}>
               <tbody>
                 <tr>
@@ -126,7 +126,7 @@ export default function DeliveryOrderDetailClient({
                 <tr>
                   <td></td>
                   <td></td>
-                  <td style={{ paddingBottom: 6, lineHeight: 1.4, whiteSpace: 'pre-wrap',  wordBreak: 'break-word' }}>
+                  <td style={{ paddingBottom: 3, lineHeight: 1.4, whiteSpace: 'pre-wrap',  wordBreak: 'break-word' }}>
                     {billingAddress?.complete_address || shippingAddress?.complete_address || '-'}
                   </td>
                 </tr>
@@ -141,7 +141,7 @@ export default function DeliveryOrderDetailClient({
                 <tr>
                   <td style={{ verticalAlign: 'top' }}>Attn</td>
                   <td style={{ verticalAlign: 'top' }}>:</td>
-                  <td style={{ paddingBottom: 6 }}>
+                  <td style={{ paddingBottom: 3 }}>
                     {shippingAddress?.pic_name || '-'}
                     {shippingAddress?.pic_phone ? ` ${shippingAddress.pic_phone}` : ''}
                   </td>

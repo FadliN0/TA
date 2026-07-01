@@ -7,27 +7,28 @@ export const dynamic = 'force-dynamic';
 export default async function CreateQuotationPage() {
   const supabase = createServerComponentClient({ cookies });
 
-  const { data: products } = await supabase
-    .from('products')
-    .select('*')
-    .order('part_code');
-  const { data: customers } = await supabase
-    .from('customers')
-    .select('*')
-    .order('company_name');
-
-  // Generate nomor penawaran berikutnya (QO-HJP-YYYYMM-XXX)
+  // Perhitungan sinkron (tanpa await) → siapkan dulu
   const today = new Date();
   const yearMonth = `${today.getFullYear()}${String(today.getMonth() + 1).padStart(2, '0')}`;
   const prefix = `QO-HJP-${yearMonth}-`;
 
-  const { data: lastDoc } = await supabase
-    .from('quotations')
-    .select('quotation_number')
-    .like('quotation_number', `${prefix}%`)
-    .order('quotation_number', { ascending: false })
-    .limit(1);
+  // 3 query mandiri → jalankan bersamaan
+  const [productsRes, customersRes, lastDocRes] = await Promise.all([
+    supabase.from('products').select('*').order('part_code'),
+    supabase.from('customers').select('*').order('company_name'),
+    supabase
+      .from('quotations')
+      .select('quotation_number')
+      .like('quotation_number', `${prefix}%`)
+      .order('quotation_number', { ascending: false })
+      .limit(1),
+  ]);
 
+  const products = productsRes.data || [];
+  const customers = customersRes.data || [];
+  const lastDoc = lastDocRes.data;
+
+  // Perhitungan ini BUTUH lastDoc → harus setelah Promise.all
   let nextSeq = 1;
   if (lastDoc && lastDoc.length > 0) {
     const remainder = lastDoc[0].quotation_number.replace(prefix, '');
@@ -43,8 +44,8 @@ export default async function CreateQuotationPage() {
 
   return (
     <CreateQuotationClient
-      products={products || []}
-      customers={customers || []}
+      products={products}
+      customers={customers}
       initialQuotationNumber={initialQuotationNumber}
       initialValidUntil={initialValidUntil}
     />

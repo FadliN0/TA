@@ -3,11 +3,7 @@
 import { createServerClient } from '@/lib/supabaseServer';
 import { revalidatePath } from 'next/cache';
 
-/**
- * Ubah status Sales Order (Open / Processing / Cancelled).
- * - 'Completed' tidak boleh di-set manual (hanya otomatis oleh sistem).
- * - 'Cancelled' diblokir jika SO sudah punya turunan DO / Invoice.
- */
+
 export async function updateSalesOrderStatusAction(id: string, newStatus: string) {
   if (newStatus === 'Completed') {
     throw new Error(

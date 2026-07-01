@@ -16,37 +16,51 @@ export default async function DeliveryOrderCreatePage({
 
   const supabase = createServerComponentClient({ cookies });
 
-  // 1. Data SO
-  const { data: salesOrder } = await supabase
-    .from('sales_orders')
-    .select('*, customers(company_name)')
-    .eq('id', so_id)
-    .single();
+  // === TAHAP 1: salesOrder + backorders (keduanya hanya butuh so_id) ===
+  const [salesOrderRes, backordersRes] = await Promise.all([
+    supabase
+      .from('sales_orders')
+      .select('*, customers(company_name)')
+      .eq('id', so_id)
+      .single(),
+    supabase.rpc('get_remaining_backorder', { p_so_id: so_id }),
+  ]);
 
-  // 2. Semua alamat customer (alamat utama di atas)
-  let availableAddresses: any[] = [];
-  if (salesOrder?.customer_id) {
-    const { data } = await supabase
-      .from('customer_addresses')
-      .select('*')
-      .eq('customer_id', salesOrder.customer_id)
-      .order('is_default', { ascending: false });
-    availableAddresses = data || [];
+  const salesOrder = salesOrderRes.data;
+  const backorders = backordersRes.data;
+
+  // Jika backorder habis, kembali ke SO
+  if (!backorders || backorders.length === 0) {
+    redirect(`/dashboard/sales-orders/${so_id}`);
   }
 
-  // 3. Sisa backorder (read RPC). Jika sudah habis, balik ke SO.
-  const { data: backorders } = await supabase.rpc('get_remaining_backorder', { p_so_id: so_id });
-  if (!backorders || backorders.length === 0) redirect(`/dashboard/sales-orders/${so_id}`);
-
   const soItemIds = backorders.map((b: any) => b.so_item_id);
-  const { data: itemDetails } = await supabase
-    .from('sales_order_items')
-    .select('id, products(part_code, part_name, unit)')
-    .in('id', soItemIds);
 
+  // === TAHAP 2: alamat (butuh salesOrder) + detail item (butuh backorders) ===
+  // Keduanya saling mandiri → paralel
+  const [addressesRes, itemDetailsRes] = await Promise.all([
+    salesOrder?.customer_id
+      ? supabase
+          .from('customer_addresses')
+          .select('*')
+          .eq('customer_id', salesOrder.customer_id)
+          .order('is_default', { ascending: false })
+      : Promise.resolve({ data: [] as any[] }),
+    supabase
+      .from('sales_order_items')
+      .select('id, products(part_code, part_name, unit)')
+      .in('id', soItemIds),
+  ]);
+
+  const availableAddresses = addressesRes.data || [];
+  const itemDetails = itemDetailsRes.data;
+
+  // === Sisanya SAMA seperti kodemu ===
   const initialItems = backorders.map((bo: any) => {
     const detail = itemDetails?.find((i) => i.id === bo.so_item_id);
-    const productInfo = Array.isArray(detail?.products) ? detail?.products[0] : detail?.products;
+    const productInfo = Array.isArray(detail?.products)
+      ? detail?.products[0]
+      : detail?.products;
     return {
       ...bo,
       part_code: productInfo?.part_code || '-',
@@ -56,13 +70,17 @@ export default async function DeliveryOrderCreatePage({
     };
   });
 
-  // Pre-select alamat: pakai address_id dari SO jika ada, kalau tidak pakai default/first
   let preselectedAddressId = '';
   if (availableAddresses.length > 0) {
-    if (salesOrder?.address_id && availableAddresses.find((a) => a.id === salesOrder.address_id)) {
+    if (
+      salesOrder?.address_id &&
+      availableAddresses.find((a) => a.id === salesOrder.address_id)
+    ) {
       preselectedAddressId = salesOrder.address_id;
     } else {
-      preselectedAddressId = (availableAddresses.find((a) => a.is_default) || availableAddresses[0]).id;
+      preselectedAddressId = (
+        availableAddresses.find((a) => a.is_default) || availableAddresses[0]
+      ).id;
     }
   }
 

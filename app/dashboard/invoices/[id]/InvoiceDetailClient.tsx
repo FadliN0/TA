@@ -521,7 +521,7 @@ export default function InvoiceDetailClient({
                 Kec. Grogol Petamburan, Jakarta Barat
               </div>
             </div>
-            <div style={{ width: 90, height: 90, flexShrink: 0 }}>
+            <div style={{ width: 120, height: 90, flexShrink: 0 }}>
               <img
                 src="/logo1.png"
                 alt="Logo"
@@ -679,9 +679,9 @@ export default function InvoiceDetailClient({
                         <td style={{ paddingBottom: 3 }}>Cash</td>
                       </tr>
                       <tr>
-                        <td style={{ paddingBottom: 32 }}>Delivery Terms</td>
-                        <td style={{ paddingBottom: 32 }}>:</td>
-                        <td style={{ paddingBottom: 32 }}>Franco GTS</td>
+                        <td style={{ paddingBottom: 48 }}>Delivery Terms</td>
+                        <td style={{ paddingBottom: 48 }}>:</td>
+                        <td style={{ paddingBottom: 48 }}>Franco GTS</td>
                       </tr>
                       <tr>
                         <td>Page</td>

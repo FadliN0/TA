@@ -390,7 +390,7 @@ export default function QuotationDetailClient({
                   <td style={{ ...tdLabel, paddingTop: 8 }}>Telp</td>
                   <td style={{ ...tdColon, paddingTop: 8 }}>:</td>
                   <td style={{ ...tdValue, paddingTop: 8 }}>
-                    {address?.pic_phone ? `(${address.pic_phone})` : ""}
+                    {address?.pic_phone ? `${address.pic_phone}` : ""}
                   </td>
                 </tr>
                 <tr>

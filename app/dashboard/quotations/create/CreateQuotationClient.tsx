@@ -2,11 +2,10 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { supabase } from "@/lib/supabase";
 import Link from "next/link";
 import { useToast } from "@/components/ui/Alert";
 import { updateProductFieldAction } from "../actions";
-import { createQuotationAction } from "./actions";
+import { createQuotationAction, getCustomerAddressesAction } from "./actions";
 
 type CreateQuotationClientProps = {
   products: any[];
@@ -46,12 +45,15 @@ export default function CreateQuotationClient({
       unit_price: 0,
       discount: 0,
       remark: "",
+      search: "",
       _db_price: 0,
       _db_remark: "",
     },
   ]);
 
   const toast = useToast();
+  const [openSearchIndex, setOpenSearchIndex] = useState<number | null>(null);
+  const [highlightIndex, setHighlightIndex] = useState(0);
 
   // Update master produk (harga / remark) saat user benar-benar mengubahnya
   const updateProductField = async (
@@ -79,15 +81,14 @@ export default function CreateQuotationClient({
   const handleCustomerChange = async (id: string) => {
     setSelectedCustomerId(id);
     setSelectedAddressId("");
-    const { data: addrs } = await supabase
-      .from("customer_addresses")
-      .select("*")
-      .eq("customer_id", id);
-    if (addrs) {
+    const addrs = await getCustomerAddressesAction(id);
+    if (addrs && addrs.length > 0) {
       setAddressesList(addrs);
-      const def = addrs.find((a) => a.is_default);
+      const def = addrs.find((a: any) => a.is_default);
       if (def) setSelectedAddressId(def.id);
-      else if (addrs.length > 0) setSelectedAddressId(addrs[0].id);
+      else setSelectedAddressId(addrs[0].id);
+    } else {
+      setAddressesList([]); 
     }
   };
 
@@ -103,11 +104,13 @@ export default function CreateQuotationClient({
         unit: prod.unit,
         unit_price: prod.price,
         remark: prod.remark,
+        search : prod.part_code,
         _db_price: prod.price,
         _db_remark: prod.remark,
       };
       setItems(newItems);
     }
+    setOpenSearchIndex(null);
   };
 
   const updateItemField = (index: number, field: string, value: any) => {
@@ -121,6 +124,13 @@ export default function CreateQuotationClient({
     const discountAmount = lineTotal * ((i.discount || 0) / 100);
     return sum + (lineTotal - discountAmount);
   }, 0);
+
+  const getFilteredProducts = (search: string) =>
+  productsList
+    .filter((p) =>
+      p.part_code?.toLowerCase().includes(search.toLowerCase().trim()),
+    )
+    .slice(0, 50);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -337,22 +347,89 @@ export default function CreateQuotationClient({
                   key={idx}
                   className="grid grid-cols-1 md:grid-cols-12 gap-3 md:items-center bg-white md:bg-slate-50/50 p-4 rounded-xl border border-slate-200 relative group transition-colors hover:border-blue-200"
                 >
-                  {/* Part Code */}
-                  <div className="md:col-span-2">
+                  {/* Part Code (Searchable Combobox + Keyboard Nav) */}
+                  <div className="md:col-span-2 relative">
                     <label className="md:hidden label-modern">Part Code</label>
-                    <select
-                      required
-                      value={item.product_id}
-                      onChange={(e) => handleProductSelect(idx, e.target.value)}
+                    <input
+                      type="text"
+                      required={!item.product_id}
+                      value={item.search}
+                      placeholder="Ketik part code..."
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        const newItems = [...items];
+                        newItems[idx] = {
+                          ...newItems[idx],
+                          search: val,
+                          product_id: "",
+                          part_name: "",
+                        };
+                        setItems(newItems);
+                        setOpenSearchIndex(idx);
+                        setHighlightIndex(0); // 👈 reset sorotan tiap mengetik
+                      }}
+                      onFocus={() => {
+                        setOpenSearchIndex(idx);
+                        setHighlightIndex(0);
+                      }}
+                      onBlur={() => setTimeout(() => setOpenSearchIndex(null), 150)}
+                      onKeyDown={(e) => {
+                        if (openSearchIndex !== idx) return;
+                        const filtered = getFilteredProducts(item.search);
+
+                        if (e.key === "ArrowDown") {
+                          e.preventDefault();
+                          setHighlightIndex((prev) =>
+                            Math.min(prev + 1, filtered.length - 1),
+                          );
+                        } else if (e.key === "ArrowUp") {
+                          e.preventDefault();
+                          setHighlightIndex((prev) => Math.max(prev - 1, 0));
+                        } else if (e.key === "Enter") {
+                          e.preventDefault(); // 👈 cegah form ter-submit
+                          const chosen = filtered[highlightIndex];
+                          if (chosen) handleProductSelect(idx, chosen.id);
+                        } else if (e.key === "Escape") {
+                          setOpenSearchIndex(null);
+                        }
+                      }}
                       className="input-modern py-2 font-mono text-xs"
-                    >
-                      <option value="">-- Pilih Barang --</option>
-                      {productsList.map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.part_code}
-                        </option>
-                      ))}
-                    </select>
+                    />
+
+                    {/* Dropdown hasil filter */}
+                    {openSearchIndex === idx && item.search.trim() !== "" && (
+                      <div className="absolute z-20 mt-1 w-full max-h-60 overflow-auto bg-white border border-slate-200 rounded-xl shadow-lg">
+                        {getFilteredProducts(item.search).map((p, i) => {
+                          const isActive = i === highlightIndex; // 👈 baris yang disorot
+                          return (
+                            <button
+                              type="button"
+                              key={p.id}
+                              // auto-scroll agar baris aktif selalu kelihatan
+                              ref={(el) => {
+                                if (isActive && el) el.scrollIntoView({ block: "nearest" });
+                              }}
+                              onMouseDown={() => handleProductSelect(idx, p.id)}
+                              onMouseEnter={() => setHighlightIndex(i)} // 👈 selaras dgn mouse
+                              className={`w-full text-left px-3 py-2 text-xs border-b border-slate-50 last:border-0 ${
+                                isActive ? "bg-blue-100" : "hover:bg-blue-50"
+                              }`}
+                            >
+                              <span className="font-mono font-bold text-slate-800">
+                                {p.part_code}
+                              </span>
+                              <span className="text-slate-400 ml-2">{p.part_name}</span>
+                            </button>
+                          );
+                        })}
+
+                        {getFilteredProducts(item.search).length === 0 && (
+                          <div className="px-3 py-2 text-xs text-slate-400">
+                            Part code tidak ditemukan.
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   {/* Deskripsi Barang */}
@@ -391,26 +468,36 @@ export default function CreateQuotationClient({
                       <label className="md:hidden label-modern">
                         Harga Satuan (Rp)
                       </label>
-                      <input
-                        type="number"
-                        value={item.unit_price}
-                        onChange={(e) =>
-                          updateItemField(
-                            idx,
-                            "unit_price",
-                            parseInt(e.target.value) || 0,
-                          )
-                        }
-                        onBlur={(e) => {
-                          const val = parseInt(e.target.value) || 0;
-                          // Update ke DB hanya jika nilainya berubah dari aslinya
-                          if (item.product_id && val !== item._db_price) {
-                            updateProductField(item.product_id, "price", val);
-                            updateItemField(idx, "_db_price", val); // update tracking
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-slate-400 pointer-events-none">
+                          Rp
+                        </span>
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          placeholder="0"
+                          value={
+                            item.unit_price ? item.unit_price.toLocaleString("id-ID") : ""
                           }
-                        }}
-                        className="input-modern py-2 text-right text-xs"
-                      />
+                          onChange={(e) => {
+                            const digits = e.target.value.replace(/\D/g, "");
+                            updateItemField(
+                              idx,
+                              "unit_price",
+                              digits ? parseInt(digits, 10) : 0,
+                            );
+                          }}
+                          onBlur={(e) => {
+                            const val = parseInt(e.target.value.replace(/\D/g, ""), 10) || 0;
+                            // Update ke DB hanya jika nilainya berubah dari aslinya
+                            if (item.product_id && val !== item._db_price) {
+                              updateProductField(item.product_id, "price", val);
+                              updateItemField(idx, "_db_price", val); // update tracking
+                            }
+                          }}
+                          className="input-modern py-2 pl-9 text-right text-xs"
+                        />
+                      </div>
                     </div>
                   </div>
 
@@ -419,17 +506,16 @@ export default function CreateQuotationClient({
                     <div>
                       <label className="md:hidden label-modern">Diskon %</label>
                       <input
-                        type="number"
-                        min="0"
-                        max="100"
-                        value={item.discount}
-                        onChange={(e) =>
-                          updateItemField(
-                            idx,
-                            "discount",
-                            parseFloat(e.target.value) || 0,
-                          )
-                        }
+                        type="text"
+                        inputMode="numeric"
+                        placeholder="0"
+                        value={item.discount ? item.discount : ""}
+                        onChange={(e) => {
+                          const digits = e.target.value.replace(/\D/g, "");
+                          let num = digits ? parseInt(digits, 10) : 0;
+                          if (num > 100) num = 100; // batasi maksimal 100%
+                          updateItemField(idx, "discount", num);
+                        }}
                         className="input-modern py-2 text-center text-xs font-bold text-rose-600 bg-rose-50 focus:bg-white border-rose-100 focus:border-rose-300"
                       />
                     </div>
@@ -512,6 +598,7 @@ export default function CreateQuotationClient({
                       unit_price: 0,
                       discount: 0,
                       remark: "",
+                      search: "",
                       _db_price: 0,
                       _db_remark: "",
                     },

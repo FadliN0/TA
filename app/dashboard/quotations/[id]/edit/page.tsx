@@ -13,32 +13,43 @@ export default async function EditQuotationPage({
   const { id } = params;
   const supabase = createServerComponentClient({ cookies });
 
-  const { data: products } = await supabase
-    .from('products')
-    .select('*')
-    .order('part_code');
-  const { data: customers } = await supabase
-    .from('customers')
-    .select('*')
-    .order('company_name');
+  const [productsRes, customerRes, quoteRes] = await Promise.all([
+    supabase
+      .from('products')
+      .select('*')
+      .order('part_code'),
+    
+      supabase
+      .from('customers')
+      .select('*')
+      .order('company_name'),
 
-  const { data: quote } = await supabase
-    .from('quotations')
-    .select('*')
-    .eq('id', id)
-    .single();
+    supabase
+      .from('quotations')
+      .select('*')
+      .eq('id', id)
+      .single()
+  ]);
+
+  const quote = quoteRes.data;
+  const products = productsRes.data;
+  const customers = customerRes.data;
 
   if (!quote) notFound();
 
-  const { data: addresses } = await supabase
-    .from('customer_addresses')
-    .select('*')
-    .eq('customer_id', quote.customer_id);
+  const [addressesRes, itemsRes] = await Promise.all([
+    supabase
+      .from('customer_addresses')
+      .select('*')
+      .eq('customer_id', quote.customer_id),
+    supabase
+      .from('quotation_items')
+      .select(`*, products(part_code, part_name, unit, price, remark)`)
+      .eq('quotation_id', id),
+  ]);
 
-  const { data: itemsData } = await supabase
-    .from('quotation_items')
-    .select(`*, products(part_code, part_name, unit, price, remark)`)
-    .eq('quotation_id', id);
+  const addresses = addressesRes.data;
+  const itemsData = itemsRes.data;
 
   const initialItems = (itemsData || []).map((i: any) => ({
     product_id: i.product_id,

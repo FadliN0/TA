@@ -22,36 +22,36 @@ export default async function QuotationDetailPage({
   if (!quotation) notFound();
 
   // Cek apakah Quotation ini sudah punya Sales Order
-  const { data: existingSO } = await supabase
-    .from('sales_orders')
-    .select('id, so_number')
-    .eq('quotation_id', id)
-    .maybeSingle();
-
-  let customer = null;
-  if (quotation.customer_id) {
-    const { data } = await supabase
-      .from('customers')
-      .select('*')
-      .eq('id', quotation.customer_id)
-      .single();
-    customer = data;
-  }
-
-  let address = null;
-  if (quotation.address_id) {
-    const { data } = await supabase
-      .from('customer_addresses')
-      .select('*')
-      .eq('id', quotation.address_id)
-      .single();
-    address = data;
-  }
-
-  const { data: items } = await supabase
-    .from('quotation_items')
-    .select(`*, products ( part_code, part_name, unit, remark )`)
-    .eq('quotation_id', id);
+  const [soRes, customerRes, addressRes, itemsRes] = await Promise.all([
+    supabase
+      .from('sales_orders')
+      .select('id, so_number')
+      .eq('quotation_id', id)
+      .maybeSingle(),
+    quotation.customer_id
+      ? supabase
+        .from('customers')
+        .select('*')
+        .eq('id', quotation.customer_id)
+        .single()
+      : Promise.resolve({ data: null }),
+    quotation.address_id
+      ? supabase
+        .from('customer_addresses')
+        .select('*')
+        .eq('id', quotation.address_id)
+        .single()
+      : Promise.resolve({ data: null }),
+    supabase
+      .from('quotation_items')
+      .select('*, products(*)')
+      .eq('quotation_id', id),
+  ]);
+  
+  const existingSO = soRes.data;
+  const customer = customerRes.data;
+  const address = addressRes.data;
+  const items = itemsRes.data || [];
 
   return (
     <QuotationDetailClient
@@ -59,7 +59,7 @@ export default async function QuotationDetailPage({
       initialQuotation={quotation}
       customer={customer}
       address={address}
-      items={items || []}
+      items={items}
       initialExistingSO={existingSO}
     />
   );

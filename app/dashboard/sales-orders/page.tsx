@@ -10,10 +10,7 @@ export default async function SalesOrderListPage() {
   const { data: salesOrders } = await supabase
     .from('sales_orders')
     .select(
-      `
-        *,
-        customers ( company_name )
-      `
+      `*,customers ( company_name )`
     )
     .order('created_at', { ascending: false });
 
