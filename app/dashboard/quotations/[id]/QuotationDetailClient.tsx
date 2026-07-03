@@ -340,117 +340,120 @@ export default function QuotationDetailClient({
           </div>
 
           {/* ── INFO (2 kolom) ── */}
-          <div
+          {/* ── INFO (1 tabel agar tiap baris kiri-kanan selalu sejajar) ── */}
+          <table
             style={{
-              display: "grid",
-              gridTemplateColumns: "1fr 1fr",
-              gap: "0 24px",
+              width: "100%",
+              borderCollapse: "collapse",
               marginBottom: 16,
+              tableLayout: "fixed",
             }}
           >
-            {/* Kiri: TO / Address / Telp / Email / Fax */}
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
-              <tbody>
-                <tr>
-                  <td style={tdLabel}>TO</td>
-                  <td style={tdColon}>:</td>
-                  <td
-                    style={{
-                      ...tdValue,
-                      fontWeight: 700,
-                      textTransform: "uppercase",
-                    }}
-                  >
-                    {customer?.company_name}
-                  </td>
-                </tr>
-                <tr>
-                  <td
-                    style={{ ...tdLabel, verticalAlign: "top", paddingTop: 2 }}
-                  >
-                    Address
-                  </td>
-                  <td
-                    style={{ ...tdColon, verticalAlign: "top", paddingTop: 2 }}
-                  >
-                    :
-                  </td>
-                  <td
-                    style={{
-                      ...tdValue,
-                      whiteSpace: "pre-wrap",
-                      lineHeight: 1.6,
-                      paddingTop: 2,
-                    }}
-                  >
-                    {address?.complete_address}
-                  </td>
-                </tr>
-                <tr>
-                  <td style={{ ...tdLabel, paddingTop: 8 }}>Telp</td>
-                  <td style={{ ...tdColon, paddingTop: 8 }}>:</td>
-                  <td style={{ ...tdValue, paddingTop: 8 }}>
-                    {address?.pic_phone ? `${address.pic_phone}` : ""}
-                  </td>
-                </tr>
-                <tr>
-                  <td style={tdLabel}>Email</td>
-                  <td style={tdColon}>:</td>
-                  <td style={tdValue}>{customer?.email || ""}</td>
-                </tr>
-                <tr>
-                  <td style={tdLabel}>Fax</td>
-                  <td style={tdColon}>:</td>
-                  <td style={tdValue}></td>
-                </tr>
-              </tbody>
-            </table>
+            <colgroup>
+              <col style={{ width: 50 }} />   {/* label kiri */}
+              <col style={{ width: 10 }} />   {/* titik dua kiri */}
+              <col />                          {/* value kiri (fleksibel, nampung address) */}
+              <col style={{ width: 24 }} />   {/* jarak antar kolom */}
+              <col style={{ width: 55 }} />   {/* label kanan */}
+              <col style={{ width: 10 }} />   {/* titik dua kanan */}
+              <col style={{ width: 130 }} />  {/* value kanan */}
+            </colgroup>
+            <tbody>
+              {/* Baris 1: TO | No */}
+              <tr>
+                <td style={{ ...tdLabel, verticalAlign: "top" }}>TO</td>
+                <td style={{ ...tdColon, verticalAlign: "top" }}>:</td>
+                <td
+                  style={{
+                    ...tdValue,
+                    verticalAlign: "top",
+                    fontWeight: 700,
+                    textTransform: "uppercase",
+                  }}
+                >
+                  {customer?.company_name}
+                </td>
+                <td />
+                <td style={{ ...tdLabel, verticalAlign: "top" }}>No</td>
+                <td style={{ ...tdColon, verticalAlign: "top" }}>:</td>
+                <td style={{ ...tdValue, verticalAlign: "top", fontWeight: 700 }}>
+                  {quotation.quotation_number}
+                </td>
+              </tr>
 
-            {/* Kanan: No / MR No / Date / Validity / Attn */}
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
-              <tbody>
-                <tr>
-                  <td style={tdLabel}>No</td>
-                  <td style={tdColon}>:</td>
-                  <td style={{ ...tdValue, fontWeight: 700 }}>
-                    {quotation.quotation_number}
-                  </td>
-                </tr>
-                <tr>
-                  <td style={tdLabel}>MR No</td>
-                  <td style={tdColon}>:</td>
-                  <td style={{ ...tdValue, fontWeight: 500 }}>
-                    {quotation.mr_number || "-"}
-                  </td>
-                </tr>
-                <tr>
-                  <td style={tdLabel}>Date</td>
-                  <td style={tdColon}>:</td>
-                  <td style={tdValue}>
-                    {new Date(quotation.created_at)
-                      .toLocaleDateString("id-ID", {
-                        day: "2-digit",
-                        month: "short",
-                        year: "numeric",
-                      })
-                      .replace(/ /g, "-")}
-                  </td>
-                </tr>
-                <tr>
-                  <td style={tdLabel}>Validity</td>
-                  <td style={tdColon}>:</td>
-                  <td style={tdValue}>{getValidityDays()} Days</td>
-                </tr>
-                <tr>
-                  <td style={{ ...tdLabel, paddingTop: 8 }}>Attn</td>
-                  <td style={{ ...tdColon, paddingTop: 8 }}>:</td>
-                  <td style={{ ...tdValue, paddingTop: 8 }}>
-                    {address?.pic_name || ""}
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
+              {/* Baris 2: Address | MR No */}
+              <tr>
+                <td style={{ ...tdLabel, verticalAlign: "top" }}>Address</td>
+                <td style={{ ...tdColon, verticalAlign: "top" }}>:</td>
+                <td
+                  style={{
+
+                    ...tdValue,
+                    verticalAlign: "top",
+                    whiteSpace: "pre-wrap",
+                    lineHeight: 1.6,
+                  }}
+                >
+                  {address?.complete_address}
+                </td>
+                <td />
+                <td style={{ ...tdLabel, verticalAlign: "top" }}>MR No</td>
+                <td style={{ ...tdColon, verticalAlign: "top" }}>:</td>
+                <td style={{ ...tdValue, verticalAlign: "top", fontWeight: 500 }}>
+                  {quotation.mr_number || "-"}
+                </td>
+              </tr>
+
+              {/* Baris 3: Telp | Date */}
+              <tr>
+                <td style={{ ...tdLabel, verticalAlign: "top" }}>Telp</td>
+                <td style={{ ...tdColon, verticalAlign: "top" }}>:</td>
+                <td style={{ ...tdValue, verticalAlign: "top" }}>
+                  {address?.pic_phone ? `${address.pic_phone}` : ""}
+                </td>
+                <td />
+                <td style={{ ...tdLabel, verticalAlign: "top" }}>Date</td>
+                <td style={{ ...tdColon, verticalAlign: "top" }}>:</td>
+                <td style={{ ...tdValue, verticalAlign: "top" }}>
+                  {new Date(quotation.created_at)
+                    .toLocaleDateString("id-ID", {
+                      day: "2-digit",
+                      month: "short",
+                      year: "numeric",
+                    })
+                    .replace(/ /g, "-")}
+                </td>
+              </tr>
+
+              {/* Baris 4: Email | Validity */}
+              <tr>
+                <td style={{ ...tdLabel, verticalAlign: "top" }}>Email</td>
+                <td style={{ ...tdColon, verticalAlign: "top" }}>:</td>
+                <td style={{ ...tdValue, verticalAlign: "top" }}>
+                  {customer?.email || ""}
+                </td>
+                <td />
+                <td style={{ ...tdLabel, verticalAlign: "top" }}>Validity</td>
+                <td style={{ ...tdColon, verticalAlign: "top" }}>:</td>
+                <td style={{ ...tdValue, verticalAlign: "top" }}>
+                  {getValidityDays()} Days
+                </td>
+              </tr>
+
+              {/* Baris 5: Fax | Attn — baris paling bawah, dijamin sejajar */}
+              <tr>
+                <td style={{ ...tdLabel, verticalAlign: "top" }}>Fax</td>
+                <td style={{ ...tdColon, verticalAlign: "top" }}>:</td>
+                <td style={{ ...tdValue, verticalAlign: "top" }} />
+                <td />
+                <td style={{ ...tdLabel, verticalAlign: "top" }}>Attn</td>
+                <td style={{ ...tdColon, verticalAlign: "top" } }>:</td>
+                <td style={{ ...tdValue, verticalAlign: "top" }}>
+                  {address?.pic_name || ""}
+                </td>
+              </tr>
+            </tbody>
+          </table>
 
           {/* ── TABEL BARANG ── */}
           <table
@@ -463,14 +466,14 @@ export default function QuotationDetailClient({
           >
             <colgroup>
               <col style={{ width: 30 }} /> {/* No */}
-              <col style={{ width: 90 }} /> {/* Part Number */}
-              <col /> {/* Description */}
+              <col style={{ width: 95 }} /> {/* Part Number */}
+              <col style={{ width: 160 }} /> {/* Description */}
               <col style={{ width: 32 }} /> {/* Qty */}
               <col style={{ width: 32 }} /> {/* Unit */}
-              <col style={{ width: 90 }} /> {/* Unit Price */}
-              <col style={{ width: 32 }} /> {/* Disc */}
-              <col style={{ width: 90 }} /> {/* Amount */}
-              <col style={{ width: 60 }} /> {/* Remark */}
+              <col style={{ width: 93 }} /> {/* Unit Price */}
+              <col style={{ width: 35 }} /> {/* Disc */}
+              <col /> {/* Amount */}
+              <col style={{ width: 55 }} /> {/* Remark */}
             </colgroup>
             <thead>
               <tr>
@@ -501,7 +504,7 @@ export default function QuotationDetailClient({
                     </div>
                   </td>
                   <td style={{ ...tdItem, textAlign: "center" }}>{item.qty}</td>
-                  <td style={{ ...tdItem, textAlign: "center" }}>
+                  <td style={{ ...tdItem, textAlign: "left" }}>
                     {item.products?.unit}
                   </td>
                   <td style={{ ...tdItem, whiteSpace: "nowrap" }}>
