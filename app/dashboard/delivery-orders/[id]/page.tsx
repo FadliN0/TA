@@ -1,4 +1,3 @@
-// app/dashboard/delivery-orders/[id]/page.tsx
 import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
 import { cookies } from 'next/headers';
 import { notFound } from 'next/navigation';
@@ -23,49 +22,64 @@ export default async function DeliveryOrderDetailPage({
 
   if (!deliveryOrder) notFound();
 
-  // ── TAHAP 2: 4 query mandiri (butuh so_id / address_id / id) → paralel ──
-  const [soRes, soItemsRes, shippingRes, itemsRes] = await Promise.all([
-    deliveryOrder.so_id
-      ? supabase
-          .from('sales_orders')
-          .select('*')
-          .eq('id', deliveryOrder.so_id)
-          .single()
-      : Promise.resolve({ data: null }),
-    deliveryOrder.so_id
-      ? supabase
-          .from('sales_order_items')
-          .select('id, qty')
-          .eq('so_id', deliveryOrder.so_id)
-      : Promise.resolve({ data: [] as any[] }),
-    deliveryOrder.address_id
-      ? supabase
-          .from('customer_addresses')
-          .select('*')
-          .eq('id', deliveryOrder.address_id)
-          .single()
-      : Promise.resolve({ data: null }),
-    supabase
-      .from('delivery_order_items')
-      .select(
+  // ── TAHAP 2: 5 query mandiri → paralel ──
+  const [soRes, soItemsRes, shippingRes, itemsRes, allDeliveredRes] =
+    await Promise.all([
+      deliveryOrder.so_id
+        ? supabase
+            .from('sales_orders')
+            .select('*')
+            .eq('id', deliveryOrder.so_id)
+            .single()
+        : Promise.resolve({ data: null }),
+
+      deliveryOrder.so_id
+        ? supabase
+            .from('sales_order_items')
+            .select('id, qty')
+            .eq('so_id', deliveryOrder.so_id)
+        : Promise.resolve({ data: [] as any[] }),
+
+      deliveryOrder.address_id
+        ? supabase
+            .from('customer_addresses')
+            .select('*')
+            .eq('id', deliveryOrder.address_id)
+            .single()
+        : Promise.resolve({ data: null }),
+
+      // Item milik DO INI (untuk tabel di surat jalan)
+      supabase
+        .from('delivery_order_items')
+        .select(
+          `
+          id, qty_delivered, so_item_id,
+          sales_order_items (
+            products ( part_code, part_name, unit, remark )
+          )
         `
-        id, qty_delivered, so_item_id,
-        sales_order_items (
-          products ( part_code, part_name, unit, remark )
         )
-      `
-      )
-      .eq('do_id', id),
-  ]);
+        .eq('do_id', id),
+
+      // ▼▼▼ BARU: SEMUA pengiriman untuk SO ini (semua DO) → untuk akumulasi partial ▼▼▼
+      deliveryOrder.so_id
+        ? supabase
+            .from('delivery_order_items')
+            .select('so_item_id, qty_delivered, delivery_orders!inner(so_id)')
+            .eq('delivery_orders.so_id', deliveryOrder.so_id)
+        : Promise.resolve({ data: [] as any[] }),
+    ]);
 
   const salesOrder = soRes.data;
   const soItemsOriginal = soItemsRes.data;
   const shippingAddress = shippingRes.data;
   const rawItems = itemsRes.data || [];
+  const allDeliveredForSO = allDeliveredRes.data || [];
 
   // ── TAHAP 3: customer + billing (butuh salesOrder.customer_id) → paralel ──
   let customer: any = null;
   let billingAddress: any = null;
+
   if (salesOrder?.customer_id) {
     const [custRes, addrsRes] = await Promise.all([
       supabase
@@ -94,30 +108,32 @@ export default async function DeliveryOrderDetailPage({
     const so = Array.isArray(item.sales_order_items)
       ? item.sales_order_items[0]
       : item.sales_order_items;
-
     const prod = so
       ? Array.isArray(so.products)
         ? so.products[0]
         : so.products
       : null;
-
     return {
       ...item,
       sales_order_items: so ? { ...so, products: prod ?? null } : null,
     };
   });
 
-  // ── Bangun map qty asli SO ──
-  const soItemsDataMap: Record<string, number> = {};
-  soItemsOriginal?.forEach((item: any) => {
-    soItemsDataMap[item.id] = item.qty;
+  // ── Deteksi partial delivery (LEVEL ORDER, akumulasi semua DO) ──
+  // 1) Jumlahkan total qty yang sudah dikirim per baris SO (lintas semua DO)
+  const deliveredMap: Record<string, number> = {};
+  allDeliveredForSO.forEach((d: any) => {
+    if (!d.so_item_id) return;
+    deliveredMap[d.so_item_id] =
+      (deliveredMap[d.so_item_id] || 0) + Number(d.qty_delivered || 0);
   });
 
-  // ── Deteksi partial delivery (di server) ──
+  // 2) Partial jika ADA satu saja baris SO yang total kirimnya < qty dipesan
+  //    (termasuk baris SO yang belum pernah dikirim sama sekali)
   let isPartialDelivery = false;
-  for (const item of items) {
-    const originalQty = soItemsDataMap[item.so_item_id] || 0;
-    if (item.qty_delivered < originalQty) {
+  for (const so of soItemsOriginal || []) {
+    const delivered = deliveredMap[so.id] || 0;
+    if (delivered < Number(so.qty || 0)) {
       isPartialDelivery = true;
       break;
     }
