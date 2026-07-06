@@ -20,6 +20,18 @@ type InvoiceDetailClientProps = {
   paymentsHistory: any[];
 };
 
+// ==== Kapasitas item per halaman (SAMA RATA tiap halaman) ====
+const ROWS_PER_PAGE = 12;
+
+function paginateItems<T>(list: T[]): T[][] {
+  if (list.length === 0) return [[]];
+  const result: T[][] = [];
+  for (let i = 0; i < list.length; i += ROWS_PER_PAGE) {
+    result.push(list.slice(i, i + ROWS_PER_PAGE));
+  }
+  return result;
+}
+
 export default function InvoiceDetailClient({
   invoice,
   salesOrder,
@@ -31,10 +43,8 @@ export default function InvoiceDetailClient({
   const router = useRouter();
   const id = invoice.id;
 
-  // Role: dibaca persis sama seperti di dashboard/layout.tsx
   const supabaseClient = createClientComponentClient();
   const [userRole, setUserRole] = useState<string | null>(null);
-
   useEffect(() => {
     const fetchRole = async () => {
       const {
@@ -51,31 +61,26 @@ export default function InvoiceDetailClient({
     fetchRole();
   }, []);
 
-  // Permission flags
   const canEditDiscount = userRole === "admin";
   const canPrint = userRole === "admin" || userRole === "atasan";
   const canRecordPayment = userRole === "atasan";
   const canCancelInvoice = userRole === "admin" || userRole === "atasan";
+
   const toast = useToast();
-  // State Pembayaran
+
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [isSubmittingPayment, setIsSubmittingPayment] = useState(false);
   const [payAmount, setPayAmount] = useState<number>(0);
-  const [payDate, setPayDate] = useState(
-    new Date().toISOString().split("T")[0],
-  );
+  const [payDate, setPayDate] = useState(new Date().toISOString().split("T")[0]);
   const [payRef, setPayRef] = useState("");
   const [paymentProofFile, setPaymentProofFile] = useState<File | null>(null);
 
-  // State Pembatalan
   const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
   const [cancelReason, setCancelReason] = useState("");
   const [isSubmittingCancel, setIsSubmittingCancel] = useState(false);
 
-  // State menu aksi (overflow "lainnya")
   const [isActionMenuOpen, setIsActionMenuOpen] = useState(false);
 
-  // State Editor
   const [discountInput, setDiscountInput] = useState<number>(
     invoice.discount_amount || 0,
   );
@@ -148,14 +153,12 @@ export default function InvoiceDetailClient({
   const handlePaymentSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!canRecordPayment || isCancelled) return;
-    if (payAmount <= 0)
-      return toast.error("Nominal harus lebih dari 0", "Error");
+    if (payAmount <= 0) return toast.error("Nominal harus lebih dari 0", "Error");
     if (payAmount > balanceDue)
       return toast.error(
         `Nominal melebihi sisa tagihan! Maksimal: Rp ${balanceDue.toLocaleString("id-ID")}`,
         "Error",
       );
-
     setIsSubmittingPayment(true);
     try {
       if (paymentProofFile) {
@@ -185,12 +188,10 @@ export default function InvoiceDetailClient({
     if (!canCancelInvoice) return;
     if (!cancelReason.trim())
       return toast.error("Alasan pembatalan wajib diisi!", "Error");
-
     setIsSubmittingCancel(true);
     try {
       const res = await cancelInvoiceAction(id, cancelReason);
       if (!res.success) throw new Error(res.error);
-
       toast.success("Invoice berhasil dibatalkan!", "Success");
       setIsCancelModalOpen(false);
       router.refresh();
@@ -203,9 +204,6 @@ export default function InvoiceDetailClient({
 
   const handlePrint = () => window.print();
 
-  const MIN_ROWS = 8;
-  const emptyRowsCount = Math.max(0, MIN_ROWS - items.length);
-
   const fmtDate = (dateStr: string) =>
     new Date(dateStr).toLocaleDateString("en-GB", {
       day: "2-digit",
@@ -217,9 +215,13 @@ export default function InvoiceDetailClient({
   const font = "Arial, Helvetica, sans-serif";
   const baseSize = 11;
 
+  // ==== Pecah item jadi halaman ====
+  const pages = paginateItems(items);
+  const totalPages = pages.length;
+
   return (
     <div className="max-w-[1200px] mx-auto space-y-6 pb-10 print:m-0 print:p-0 print:max-w-none text-black relative">
-      {/* ── PANEL KONTROL ADMIN ── */}
+      {/* ── PANEL KONTROL ADMIN (tetap sekali, di luar loop) ── */}
       <div className="print:hidden w-full max-w-[210mm] mx-auto card-modern p-5 md:p-6 border-l-4 border-l-purple-500 animate-in fade-in slide-in-from-top-4 duration-500 mb-6">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
           <div className="flex flex-row items-center gap-3 sm:gap-4 w-full md:w-auto">
@@ -227,18 +229,8 @@ export default function InvoiceDetailClient({
               href="/dashboard/invoices"
               className="inline-flex items-center justify-center p-3 bg-slate-50 hover:bg-slate-100 text-slate-500 rounded-xl transition-colors border border-slate-200 shrink-0"
             >
-              <svg
-                className="w-5 h-5"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M10 19l-7-7m0 0l7-7m-7 7h18"
-                />
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
               </svg>
             </Link>
             <div>
@@ -246,7 +238,6 @@ export default function InvoiceDetailClient({
                 Status Dokumen
               </span>
               <div className="flex items-center gap-2 flex-wrap">
-                {/* [TAMBAHAN CANCEL INVOICE] Badge Status Batal */}
                 {isCancelled ? (
                   <span className="bg-rose-100 text-rose-800 border-rose-200 border px-3 py-1.5 rounded-md text-xs font-black uppercase tracking-wider">
                     🚫 DIBATALKAN
@@ -269,14 +260,10 @@ export default function InvoiceDetailClient({
             </div>
           </div>
 
-          {/* ── TOOLBAR AKSI (RAPI) ── */}
           <div className="flex flex-col sm:flex-row sm:flex-wrap items-stretch sm:items-center justify-start md:justify-end gap-2.5 w-full md:w-auto">
-            {/* Input Diskon — hanya admin */}
             {canEditDiscount && (
               <div className="relative flex items-center">
-                <span className="pointer-events-none absolute left-3 text-[11px] font-bold text-slate-400">
-                  Rp
-                </span>
+                <span className="pointer-events-none absolute left-3 text-[11px] font-bold text-slate-400">Rp</span>
                 <input
                   type="number"
                   value={discountInput === 0 ? "" : discountInput}
@@ -289,9 +276,7 @@ export default function InvoiceDetailClient({
               </div>
             )}
 
-            {/* Grup tombol aksi — satu baris penuh di mobile */}
             <div className="flex items-center gap-2.5 w-full sm:w-auto">
-              {/* Tombol Simpan — sekunder */}
               {canEditDiscount && !isCancelled && (
                 <button
                   onClick={handleSaveEdits}
@@ -299,24 +284,13 @@ export default function InvoiceDetailClient({
                   title="Simpan perubahan diskon & catatan"
                   className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 h-[42px] px-3.5 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-xl font-semibold text-sm transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                 >
-                  <svg
-                    className="w-4 h-4"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M5 13l4 4L19 7"
-                    />
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                   </svg>
                   <span>{isSavingAll ? "Menyimpan…" : "Simpan"}</span>
                 </button>
               )}
 
-              {/* Tombol Bayar — utama (atasan) */}
               {canRecordPayment && !isPaid && !isCancelled && (
                 <button
                   onClick={() => {
@@ -325,47 +299,25 @@ export default function InvoiceDetailClient({
                   }}
                   className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 h-[42px] px-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-sm transition-colors shadow-lg shadow-emerald-600/25"
                 >
-                  <svg
-                    className="w-4 h-4"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M3 10h18M7 15h1m4 0h1m-7 4h12a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
-                    />
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                   </svg>
                   Bayar
                 </button>
               )}
 
-              {/* Tombol Cetak — utama */}
               {canPrint && (
                 <button
                   onClick={handlePrint}
                   className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 h-[42px] px-4 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-bold text-sm transition-colors shadow-lg shadow-purple-600/25"
                 >
-                  <svg
-                    className="w-4 h-4"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm0-12V5a2 2 0 012-2h2a2 2 0 012 2v4H9z"
-                    />
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm0-12V5a2 2 0 012-2h2a2 2 0 012 2v4H9z" />
                   </svg>
                   Cetak PDF
                 </button>
               )}
 
-              {/* Menu "lainnya" — menyembunyikan aksi destruktif (Batalkan) */}
               {canCancelInvoice && !isPaid && !isCancelled && (
                 <div className="relative">
                   <button
@@ -373,23 +325,15 @@ export default function InvoiceDetailClient({
                     aria-label="Aksi lainnya"
                     className="shrink-0 inline-flex items-center justify-center h-[42px] w-[42px] bg-white hover:bg-slate-50 text-slate-500 border border-slate-200 rounded-xl transition-colors"
                   >
-                    <svg
-                      className="w-5 h-5"
-                      fill="currentColor"
-                      viewBox="0 0 24 24"
-                    >
+                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
                       <circle cx="12" cy="5" r="1.6" />
                       <circle cx="12" cy="12" r="1.6" />
                       <circle cx="12" cy="19" r="1.6" />
                     </svg>
                   </button>
-
                   {isActionMenuOpen && (
                     <>
-                      <div
-                        className="fixed inset-0 z-40"
-                        onClick={() => setIsActionMenuOpen(false)}
-                      />
+                      <div className="fixed inset-0 z-40" onClick={() => setIsActionMenuOpen(false)} />
                       <div className="absolute right-0 top-[calc(100%+6px)] z-50 w-56 bg-white border border-slate-200 rounded-xl shadow-xl py-1.5 animate-in fade-in slide-in-from-top-1 duration-150">
                         <button
                           onClick={() => {
@@ -398,18 +342,8 @@ export default function InvoiceDetailClient({
                           }}
                           className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm font-semibold text-rose-600 hover:bg-rose-50 transition-colors"
                         >
-                          <svg
-                            className="w-4 h-4"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M18.364 5.636L5.636 18.364M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                            />
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 5.636L5.636 18.364M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                           </svg>
                           Batalkan Invoice
                         </button>
@@ -422,250 +356,155 @@ export default function InvoiceDetailClient({
           </div>
         </div>
 
-        {/* Info untuk admin: tombol bayar tidak tersedia */}
         {userRole === "admin" && !isPaid && !isCancelled && (
           <p className="mt-4 pt-3 border-t border-slate-100 text-[11px] text-slate-400 flex items-center gap-1.5">
-            <svg
-              className="w-3.5 h-3.5 text-slate-300"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-              />
+            <svg className="w-3.5 h-3.5 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
             Pencatatan pembayaran hanya dapat dilakukan oleh Atasan.
           </p>
         )}
       </div>
 
-      {/* ── WRAPPER PDF KERTAS A4 ── */}
+      {/* ── WRAPPER SEMUA HALAMAN ── */}
       <div className="w-full overflow-x-auto pb-6 custom-scrollbar print:overflow-visible print:pb-0 relative">
-        <div
-          className="bg-white print:shadow-none print:border-none print:rounded-none relative overflow-hidden shadow-xl border border-slate-200 mx-auto"
-          style={{
-            width: "210mm",
-            padding: "20mm",
-            fontFamily: font,
-            fontSize: baseSize,
-            color: "#000",
-          }}
-        >
-          {isPaid && (
-            <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 border-[12px] border-emerald-500 text-emerald-500 px-10 py-2 rounded-3xl text-9xl font-black uppercase tracking-widest opacity-20 transform -rotate-[25deg] pointer-events-none z-50 print:opacity-[0.15]">
-              PAID
-            </div>
-          )}
+        {pages.map((pageItems, pageIndex) => {
+          const isLastPage = pageIndex === totalPages - 1;
+          const startNo = pageIndex * ROWS_PER_PAGE;
+          const emptyRowsCount = Math.max(0, ROWS_PER_PAGE - pageItems.length);
 
-          {/* [TAMBAHAN CANCEL INVOICE] Watermark Canceled */}
-          {isCancelled && (
-            <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 border-[12px] border-rose-500 text-rose-500 px-10 py-2 rounded-3xl text-7xl md:text-9xl font-black uppercase tracking-widest opacity-20 transform -rotate-[25deg] pointer-events-none z-50 print:opacity-[0.25]">
-              CANCELED
-            </div>
-          )}
-
-          {/* [TAMBAHAN CANCEL INVOICE] Banner Riwayat Batal di dalam Kertas (Biar Tercetak) */}
-          {isCancelled && (
+          return (
             <div
-              className="mb-6 p-4 border-2 border-rose-500 bg-rose-50 text-rose-900 rounded-lg"
-              style={{ fontSize: 12 }}
+              key={pageIndex}
+              className="invoice-sheet bg-white print:shadow-none print:border-none print:rounded-none relative overflow-hidden shadow-xl border border-slate-200 mx-auto mb-8 print:mb-0"
+              style={ {
+                width: "210mm",
+                minHeight: "297mm",
+                padding: "20mm",
+                boxSizing: "border-box",
+                fontFamily: font,
+                fontSize: baseSize,
+                color: "#000",
+                breakAfter: isLastPage ? "auto" : "page",
+                pageBreakAfter: isLastPage ? "auto" : "always",
+              } }
             >
-              <strong className="block mb-1 text-sm uppercase tracking-wider text-rose-700">
-                ⚠ INVOICE INI TELAH DIBATALKAN / HANGUS
-              </strong>
-              <table className="mt-2 text-xs">
-                <tbody>
-                  <tr>
-                    <td className="w-24 font-bold">Waktu Batal</td>
-                    <td>
-                      : {new Date(invoice?.canceled_at).toLocaleString("id-ID")}
-                    </td>
-                  </tr>
-                  <tr>
-                    <td className="font-bold align-top">Alasan</td>
-                    <td>: {invoice?.cancel_reason || "-"}</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          )}
+              {isPaid && (
+                <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 border-[12px] border-emerald-500 text-emerald-500 px-10 py-2 rounded-3xl text-9xl font-black uppercase tracking-widest opacity-20 transform -rotate-[25deg] pointer-events-none z-50 print:opacity-[0.15]">
+                  PAID
+                </div>
+              )}
+              {isCancelled && (
+                <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 border-[12px] border-rose-500 text-rose-500 px-10 py-2 rounded-3xl text-7xl md:text-9xl font-black uppercase tracking-widest opacity-20 transform -rotate-[25deg] pointer-events-none z-50 print:opacity-[0.25]">
+                  CANCELED
+                </div>
+              )}
 
-          {/* ===== HEADER ===== */}
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "flex-start",
-            }}
-          >
-            <div>
-              <div
-                style={{
-                  fontSize: 16,
-                  fontWeight: 900,
-                  marginBottom: 4,
-                  letterSpacing: 0.3,
-                }}
-              >
-                CV HARMONISINDO JAYA PART
-              </div>
-              <div style={{ fontSize: 10, lineHeight: 1.6 }}>
-                SOHO CAPITAL lantai. 32 unit 7 Jl. Letjen S. Parman
-                <br />
-                Kav. 28, Kelurahan Tanjung Duren Selatan
-                <br />
-                Kec. Grogol Petamburan, Jakarta Barat
-              </div>
-            </div>
-            <div style={{ width: 120, height: 90, flexShrink: 0 }}>
-              <img
-                src="/logo1.png"
-                alt="Logo"
-                style={{ width: "100%", height: "100%", objectFit: "contain" }}
-              />
-            </div>
-          </div>
-
-          <hr
-            style={{
-              border: "none",
-              borderTop: "2px solid #000",
-              margin: "1px 0 1px 0",
-            }}
-          />
-
-          <div style={{ textAlign: "center", marginTop: 2 }}>
-            <div
-              style={{
-                fontSize: 18,
-                fontWeight: 900,
-                letterSpacing: 2,
-                textDecoration: "underline",
-              }}
-            >
-              INVOICE
-            </div>
-            <div style={{ fontSize: 10 }}>
-              Invoice No. {invoice?.invoice_number}
-            </div>
-          </div>
-
-          {/* ===== TO & META ===== */}
-          <table
-            style={{
-              width: "100%",
-              borderCollapse: "collapse",
-              border: borderCell,
-              marginTop: 3,
-              marginBottom: 16,
-              fontSize: baseSize,
-            }}
-          >
-            <tbody>
-              <tr>
-                <td
-                  style={{
-                    borderRight: borderCell,
-                    padding: "8px",
-                    verticalAlign: "top",
-                    width: "50%",
-                  }}
-                >
-                  <table style={{ borderCollapse: "collapse", width: "100%" }}>
+              {/* Banner batal hanya di halaman pertama */}
+              {isCancelled && pageIndex === 0 && (
+                <div className="mb-6 p-4 border-2 border-rose-500 bg-rose-50 text-rose-900 rounded-lg" style={ { fontSize: 12 } }>
+                  <strong className="block mb-1 text-sm uppercase tracking-wider text-rose-700">
+                    ⚠ INVOICE INI TELAH DIBATALKAN / HANGUS
+                  </strong>
+                  <table className="mt-2 text-xs">
                     <tbody>
                       <tr>
-                        <td
-                          style={{
-                            width: 45,
-                            fontWeight: 700,
-                            verticalAlign: "top",
-                          }}
-                        >
-                          TO
-                        </td>
-                        <td
-                          style={{
-                            width: 15,
-                            fontWeight: 700,
-                            verticalAlign: "top",
-                          }}
-                        >
-                          :
-                        </td>
-                        <td
-                          style={{
-                            fontWeight: 900,
-                            textTransform: "uppercase",
-                          }}
-                        >
-                          {customer?.company_name}
-                        </td>
+                        <td className="w-24 font-bold">Waktu Batal</td>
+                        <td>: {new Date(invoice?.canceled_at).toLocaleString("id-ID")}</td>
+                      </tr>
+                      <tr>
+                        <td className="font-bold align-top">Alasan</td>
+                        <td>: {invoice?.cancel_reason || "-"}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {/* ===== HEADER (diulang tiap halaman) ===== */}
+              <div style={ { display: "flex", justifyContent: "space-between", alignItems: "flex-start" } }>
+                <div>
+                  <div style={ { fontSize: 16, fontWeight: 900, marginBottom: 4, letterSpacing: 0.3 } }>
+                    CV HARMONISINDO JAYA PART
+                  </div>
+                  <div style={ { fontSize: 10, lineHeight: 1.6 } }>
+                    SOHO CAPITAL lantai. 32 unit 7 Jl. Letjen S. Parman
+                    <br />
+                    Kav. 28, Kelurahan Tanjung Duren Selatan
+                    <br />
+                    Kec. Grogol Petamburan, Jakarta Barat
+                  </div>
+                </div>
+                <div style={ { width: 120, height: 90, flexShrink: 0 } }>
+                  <img src="/logo1.png" alt="Logo" style={ { width: "100%", height: "100%", objectFit: "contain" } } />
+                </div>
+              </div>
+
+              <hr style={ { border: "none", borderTop: "2px solid #000", margin: "1px 0 1px 0" } } />
+
+              <div style={ { textAlign: "center", marginTop: 2 } }>
+                <div style={ { fontSize: 18, fontWeight: 900, letterSpacing: 2, textDecoration: "underline" } }>
+                  INVOICE
+                </div>
+                <div style={ { fontSize: 10 } }>Invoice No. {invoice?.invoice_number}</div>
+              </div>
+
+              {/* ===== TO & META (FLEX, PAGE SEJAJAR EMAIL, diulang tiap halaman) ===== */}
+              <div style={ { display: "flex", alignItems: "stretch", border: borderCell, marginTop: 3, marginBottom: 16, fontSize: baseSize } }>
+                {/* KIRI: TO */}
+                <div style={ { flex: 1, borderRight: borderCell, padding: "8px", display: "flex", flexDirection: "column" } }>
+                  <table style={ { borderCollapse: "collapse", width: "100%" } }>
+                    <tbody>
+                      <tr>
+                        <td style={ { width: 45, fontWeight: 700, verticalAlign: "top" } }>TO</td>
+                        <td style={ { width: 15, fontWeight: 700, verticalAlign: "top" } }>:</td>
+                        <td style={ { fontWeight: 900, textTransform: "uppercase" } }>{customer?.company_name}</td>
                       </tr>
                       <tr>
                         <td></td>
                         <td></td>
-                        <td
-                          style={{
-                            paddingBottom: 3,
-                            lineHeight: 1.4,
-                            whiteSpace: "pre-wrap",
-                          }}
-                        >
+                        <td style={ { paddingBottom: 3, lineHeight: 1.4, whiteSpace: "pre-wrap" } }>
                           {billingAddress?.complete_address || "-"}
                         </td>
                       </tr>
                       <tr>
-                        <td style={{ fontWeight: 700 }}>Attn</td>
-                        <td style={{ fontWeight: 700 }}>:</td>
-                        <td style={{ paddingBottom: 3 }}>
-                          {billingAddress?.pic_name || "-"}
-                        </td>
+                        <td style={ { fontWeight: 700 } }>Attn</td>
+                        <td style={ { fontWeight: 700 } }>:</td>
+                        <td style={ { paddingBottom: 3 } }>{billingAddress?.pic_name || "-"}</td>
                       </tr>
                       <tr>
-                        <td style={{ fontWeight: 700 }}>Telp</td>
-                        <td style={{ fontWeight: 700 }}>:</td>
-                        <td style={{ paddingBottom: 3 }}>
-                          {billingAddress?.pic_phone
-                            ? ` ${billingAddress.pic_phone}`
-                            : "-"}
-                        </td>
-                      </tr>
-                      <tr>
-                        <td style={{ fontWeight: 700 }}>Email</td>
-                        <td style={{ fontWeight: 700 }}>:</td>
-                        <td style={{ paddingBottom: 3 }}>
-                          {billingAddress?.pic_email || "-"}
+                        <td style={ { fontWeight: 700 } }>Telp</td>
+                        <td style={ { fontWeight: 700 } }>:</td>
+                        <td style={ { paddingBottom: 3 } }>
+                          {billingAddress?.pic_phone ? ` ${billingAddress.pic_phone}` : "-"}
                         </td>
                       </tr>
                     </tbody>
                   </table>
-                </td>
-                <td
-                  style={{ padding: "8px", verticalAlign: "top", width: "50%" }}
-                >
-                  <table
-                    style={{
-                      borderCollapse: "collapse",
-                      width: "100%",
-                      fontSize: baseSize,
-                    }}
-                  >
+                  <table style={ { borderCollapse: "collapse", width: "100%", marginTop: "auto" } }>
                     <tbody>
                       <tr>
-                        <td style={{ width: 100, paddingBottom: 3 }}>No PO</td>
-                        <td style={{ width: 15, paddingBottom: 3 }}>:</td>
-                        <td style={{ paddingBottom: 3 }}>
-                          {salesOrder?.po_number || "-"}
-                        </td>
+                        <td style={ { width: 45, fontWeight: 700 } }>Email</td>
+                        <td style={ { width: 15, fontWeight: 700 } }>:</td>
+                        <td>{billingAddress?.pic_email || "-"}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* KANAN: META */}
+                <div style={ { flex: 1, padding: "8px", display: "flex", flexDirection: "column" } }>
+                  <table style={ { borderCollapse: "collapse", width: "100%" } }>
+                    <tbody>
+                      <tr>
+                        <td style={ { width: 100, paddingBottom: 3 } }>No PO</td>
+                        <td style={ { width: 15, paddingBottom: 3 } }>:</td>
+                        <td style={ { paddingBottom: 3 } }>{salesOrder?.po_number || "-"}</td>
                       </tr>
                       <tr>
-                        <td style={{ paddingBottom: 3 }}>Date</td>
-                        <td style={{ paddingBottom: 3 }}>:</td>
-                        <td style={{ paddingBottom: 3 }}>
+                        <td style={ { paddingBottom: 3 } }>Date</td>
+                        <td style={ { paddingBottom: 3 } }>:</td>
+                        <td style={ { paddingBottom: 3 } }>
                           {invoice?.issue_date
                             ? fmtDate(invoice.issue_date)
                             : invoice?.created_at
@@ -674,320 +513,188 @@ export default function InvoiceDetailClient({
                         </td>
                       </tr>
                       <tr>
-                        <td style={{ paddingBottom: 3 }}>Payment Terms</td>
-                        <td style={{ paddingBottom: 3 }}>:</td>
-                        <td style={{ paddingBottom: 3 }}>Cash</td>
+                        <td style={ { paddingBottom: 3 } }>Payment Terms</td>
+                        <td style={ { paddingBottom: 3 } }>:</td>
+                        <td style={ { paddingBottom: 3 } }>Cash</td>
                       </tr>
                       <tr>
-                        <td style={{ paddingBottom: 48 }}>Delivery Terms</td>
-                        <td style={{ paddingBottom: 48 }}>:</td>
-                        <td style={{ paddingBottom: 48 }}>Franco GTS</td>
-                      </tr>
-                      <tr>
-                        <td>Page</td>
+                        <td>Delivery Terms</td>
                         <td>:</td>
-                        <td>1 of 1</td>
+                        <td>Franco GTS</td>
                       </tr>
                     </tbody>
                   </table>
-                </td>
-              </tr>
-            </tbody>
-          </table>
+                  <table style={ { borderCollapse: "collapse", width: "100%", marginTop: "auto" } }>
+                    <tbody>
+                      <tr>
+                        <td style={ { width: 100 } }>Page</td>
+                        <td style={ { width: 15 } }>:</td>
+                        <td>{pageIndex + 1} of {totalPages}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
 
-          {/* ===== TABEL ITEM ===== */}
-          <table
-            style={{
-              width: "100%",
-              borderCollapse: "collapse",
-              marginBottom: 0,
-              tableLayout: "fixed",
-              fontSize: baseSize,
-            }}
-          >
-            <colgroup>
-              <col style={{ width: 30 }} />
-              <col style={{ width: 120 }} />
-              <col />
-              <col style={{ width: 38 }} />
-              <col style={{ width: 100 }} />
-              <col style={{ width: 110 }} />
-              <col style={{ width: 60 }} />
-            </colgroup>
-            <thead>
-              <tr>
-                <th style={thStyle}>NO</th>
-                <th style={thStyle}>PART NUMBER</th>
-                <th style={thStyle}>DESCRIPTION</th>
-                <th style={thStyle}>QTY</th>
-                <th style={thStyle}>PRICE</th>
-                <th style={thStyle}>AMOUNT</th>
-                <th style={thStyle}>NOTE</th>
-              </tr>
-            </thead>
-            <tbody>
-              {items.map((item, index) => {
-                const product = item.products || item;
-                const qty = item.qty_billed || item.qty || 1;
-                const price = item.unit_price || 0;
-                const amount = item.total_price || qty * price;
-                const noteTargetId = item.invoice_item_id || item.id;
-
-                return (
-                  <tr key={item.id || index}>
-                    <td
-                      style={{
-                        ...tdItem,
-                        textAlign: "center",
-                        verticalAlign: "top",
-                      }}
-                    >
-                      {index + 1}
-                    </td>
-                    <td style={{ ...tdItem, verticalAlign: "center" }}>
-                      {product?.part_code || "-"}
-                    </td>
-                    <td
-                      style={{
-                        ...tdItem,
-                        whiteSpace: "normal",
-                        wordBreak: "break-word",
-                        verticalAlign: "top",
-                      }}
-                    >
-                      {product?.part_name || "-"}
-                    </td>
-                    <td
-                      style={{
-                        ...tdItem,
-                        textAlign: "center",
-                        verticalAlign: "top",
-                      }}
-                    >
-                      {qty}
-                    </td>
-                    <td style={{ ...tdItem, verticalAlign: "top" }}>
-                      <div
-                        style={{
-                          display: "flex",
-                          justifyContent: "space-between",
-                        }}
-                      >
-                        <span>Rp</span>
-                        <span>{price.toLocaleString("id-ID")}</span>
-                      </div>
-                    </td>
-                    <td style={{ ...tdItem, verticalAlign: "top" }}>
-                      <div
-                        style={{
-                          display: "flex",
-                          justifyContent: "space-between",
-                        }}
-                      >
-                        <span>Rp</span>
-                        <span>{amount.toLocaleString("id-ID")}</span>
-                      </div>
-                    </td>
-                    <td
-                      style={{ ...tdItem, padding: 0, verticalAlign: "center" }}
-                    >
-                      <textarea
-                        rows={1}
-                        value={
-                          itemNotes[noteTargetId] !== undefined
-                            ? itemNotes[noteTargetId]
-                            : ""
-                        }
-                        onChange={(e) => {
-                          setItemNotes({
-                            ...itemNotes,
-                            [noteTargetId]: e.target.value,
-                          });
-                          e.target.style.height = "auto";
-                          e.target.style.height = e.target.scrollHeight + "px";
-                        }}
-                        disabled={!isEditable}
-                        placeholder=""
-                        className="w-full bg-transparent border-none outline-none px-2 py-1.5 text-[10px] text-center focus:bg-purple-50 print:p-0 print:focus:bg-transparent disabled:text-black font-medium resize-none overflow-hidden"
-                        style={{ minHeight: "26px" }}
-                      />
-                    </td>
+              {/* ===== TABEL ITEM ===== */}
+              <table style={ { width: "100%", borderCollapse: "collapse", marginBottom: 0, tableLayout: "fixed", fontSize: baseSize } }>
+                <colgroup>
+                  <col style={ { width: 30 } } />
+                  <col style={ { width: 100 } } />
+                  <col />
+                  <col style={ { width: 38 } } />
+                  <col style={ { width: 100 } } />
+                  <col style={ { width: 110 } } />
+                  <col style={ { width: 60 } } />
+                </colgroup>
+                <thead>
+                  <tr>
+                    <th style={thStyle}>NO</th>
+                    <th style={thStyle}>PART NUMBER</th>
+                    <th style={thStyle}>DESCRIPTION</th>
+                    <th style={thStyle}>QTY</th>
+                    <th style={thStyle}>PRICE</th>
+                    <th style={thStyle}>AMOUNT</th>
+                    <th style={thStyle}>NOTE</th>
                   </tr>
-                );
-              })}
+                </thead>
+                <tbody>
+                  {pageItems.map((item, index) => {
+                    const product = item.products || item;
+                    const qty = item.qty_billed || item.qty || 1;
+                    const price = item.unit_price || 0;
+                    const amount = item.total_price || qty * price;
+                    const noteTargetId = item.invoice_item_id || item.id;
+                    return (
+                      <tr key={item.id || `${pageIndex}-${index}`}>
+                        <td style={ { ...tdItem, textAlign: "center" } }>
+                          {startNo + index + 1}
+                        </td>
+                        <td style={ { ...tdItem, verticalAlign: "center" } }>{product?.part_code || "-"}</td>
+                        <td style={ { ...tdItem, whiteSpace: "normal", wordBreak: "break-word",  } }>
+                          {product?.part_name || "-"}
+                        </td>
+                        <td style={ { ...tdItem, textAlign: "center",  } }>{qty}</td>
+                        <td style={ { ...tdItem,  } }>
+                          <div style={ { display: "flex", justifyContent: "space-between" } }>
+                            <span>Rp</span>
+                            <span>{price.toLocaleString("id-ID")}</span>
+                          </div>
+                        </td>
+                        <td style={ { ...tdItem,  } }>
+                          <div style={ { display: "flex", justifyContent: "space-between" } }>
+                            <span>Rp</span>
+                            <span>{amount.toLocaleString("id-ID")}</span>
+                          </div>
+                        </td>
+                        <td style={ { ...tdItem, padding: 0, verticalAlign: "center" } }>
+                          <textarea
+                            rows={1}
+                            value={itemNotes[noteTargetId] !== undefined ? itemNotes[noteTargetId] : ""}
+                            onChange={(e) => {
+                              setItemNotes({ ...itemNotes, [noteTargetId]: e.target.value });
+                              e.target.style.height = "auto";
+                              e.target.style.height = e.target.scrollHeight + "px";
+                            }}
+                            disabled={!isEditable}
+                            placeholder=""
+                            className="w-full bg-transparent border-none outline-none px-2 py-1.5 text-[10px] text-center focus:bg-purple-50 print:p-0 print:focus:bg-transparent disabled:text-black font-medium resize-none overflow-hidden"
+                            style={ { minHeight: "26px" } }
+                          />
+                        </td>
+                      </tr>
+                    );
+                  })}
 
-              {Array.from({ length: emptyRowsCount }).map((_, i) => (
-                <tr key={`empty-${i}`}>
-                  <td style={{ ...tdItem, height: 26 }}></td>
-                  <td style={tdItem}></td>
-                  <td style={tdItem}></td>
-                  <td style={tdItem}></td>
-                  <td style={tdItem}></td>
-                  <td style={tdItem}></td>
-                  <td style={tdItem}></td>
-                </tr>
-              ))}
+                  {Array.from({ length: emptyRowsCount }).map((_, i) => (
+                    <tr key={`empty-${pageIndex}-${i}`}>
+                      <td style={ { ...tdItem, height: 26 } }></td>
+                      <td style={tdItem}></td>
+                      <td style={tdItem}></td>
+                      <td style={tdItem}></td>
+                      <td style={tdItem}></td>
+                      <td style={tdItem}></td>
+                      <td style={tdItem}></td>
+                    </tr>
+                  ))}
 
-              {/* BARIS FOOTER TERINTEGRASI TABEL */}
-              <tr>
-                <td
-                  colSpan={4}
-                  rowSpan={3}
-                  style={{
-                    border: borderCell,
-                    borderTop: "3px double #000",
-                    padding: "10px 14px",
-                    verticalAlign: "top",
-                  }}
-                >
-                  <p
-                    style={{
-                      margin: "0 0 6px",
-                      fontWeight: 900,
-                      textDecoration: "underline",
-                    }}
-                  >
-                    PAYMENT INSTRUCTION / NOTES :
-                  </p>
-                  <textarea
-                    value={invoiceNote}
-                    onChange={(e) => setInvoiceNote(e.target.value)}
-                    disabled={!isEditable}
-                    className="w-full h-24 bg-transparent border-none outline-none resize-none text-[11px] leading-relaxed disabled:text-black font-medium"
-                    placeholder="Tulis instruksi transfer di sini..."
-                  />
-                </td>
-                <td
-                  style={{
-                    border: borderCell,
-                    borderTop: "3px double #000",
-                    padding: "6px 10px",
-                    fontWeight: 700,
-                  }}
-                >
-                  Sub Total
-                </td>
-                <td
-                  colSpan={2}
-                  style={{
-                    border: borderCell,
-                    borderTop: "3px double #000",
-                    padding: "6px 8px",
-                  }}
-                >
-                  <div
-                    style={{ display: "flex", justifyContent: "space-between" }}
-                  >
-                    <span>Rp</span>
-                    <span
-                      style={{
-                        textDecoration: isCancelled ? "line-through" : "none",
-                      }}
-                    >
-                      {subTotal.toLocaleString("id-ID")}
-                    </span>
-                  </div>
-                </td>
-              </tr>
-              <tr>
-                <td
-                  style={{
-                    border: borderCell,
-                    padding: "6px 10px",
-                    fontWeight: 700,
-                  }}
-                >
-                  Discount
-                </td>
-                <td
-                  colSpan={2}
-                  style={{ border: borderCell, padding: "6px 8px" }}
-                >
-                  <div
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      color: discountInput > 0 ? "#e11d48" : "#000",
-                    }}
-                  >
-                    <span>Rp</span>
-                    <span>
-                      {discountInput > 0
-                        ? discountInput.toLocaleString("id-ID")
-                        : "-"}
-                    </span>
-                  </div>
-                </td>
-              </tr>
-              <tr>
-                <td
-                  style={{
-                    border: borderCell,
-                    padding: "6px 10px",
-                    fontWeight: 700,
-                  }}
-                >
-                  Total
-                </td>
-                <td
-                  colSpan={2}
-                  style={{
-                    border: borderCell,
-                    padding: "6px 8px",
-                    fontWeight: 900,
-                  }}
-                >
-                  <div
-                    style={{ display: "flex", justifyContent: "space-between" }}
-                  >
-                    <span>Rp</span>
-                    <span
-                      style={{
-                        textDecoration: isCancelled ? "line-through" : "none",
-                      }}
-                    >
-                      {grandTotal.toLocaleString("id-ID")}
-                    </span>
-                  </div>
-                </td>
-              </tr>
-            </tbody>
-          </table>
+                  {/* FOOTER TOTAL → HANYA di halaman terakhir */}
+                  {isLastPage && (
+                    <>
+                      <tr>
+                        <td
+                          colSpan={4}
+                          rowSpan={3}
+                          style={ { border: borderCell, borderTop: "3px double #000", padding: "10px 14px", verticalAlign: "center"} }
+                        >
+                          <p style={ { margin: "0 0 6px", fontWeight: 900, textDecoration: "underline" } }>
+                            PAYMENT INSTRUCTION / NOTES :
+                          </p>
+                          <textarea
+                            value={invoiceNote}
+                            onChange={(e) => setInvoiceNote(e.target.value)}
+                            disabled={!isEditable}
+                            className="w-full h-24 bg-transparent border-none outline-none resize-none text-[11px] leading-relaxed disabled:text-black font-medium"
+                            placeholder="Tulis instruksi transfer di sini..."
+                          />
+                        </td>
+                        <td style={ { border: borderCell, borderTop: "3px double #000", padding: "6px 10px", fontWeight: 700 } }>
+                          Sub Total
+                        </td>
+                        <td colSpan={2} style={ { border: borderCell, borderTop: "3px double #000", padding: "6px 8px" } }>
+                          <div style={ { display: "flex", justifyContent: "space-between" } }>
+                            <span>Rp</span>
+                            <span style={ { textDecoration: isCancelled ? "line-through" : "none" } }>
+                              {subTotal.toLocaleString("id-ID")}
+                            </span>
+                          </div>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style={ { border: borderCell, padding: "6px 10px", fontWeight: 700 } }>Discount</td>
+                        <td colSpan={2} style={ { border: borderCell, padding: "6px 8px" } }>
+                          <div style={ { display: "flex", justifyContent: "space-between", color: discountInput > 0 ? "#e11d48" : "#000" } }>
+                            <span>Rp</span>
+                            <span>{discountInput > 0 ? discountInput.toLocaleString("id-ID") : "-"}</span>
+                          </div>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style={ { border: borderCell, padding: "6px 10px", fontWeight: 700 } }>Total</td>
+                        <td colSpan={2} style={ { border: borderCell, padding: "6px 8px", fontWeight: 900 } }>
+                          <div style={ { display: "flex", justifyContent: "space-between" } }>
+                            <span>Rp</span>
+                            <span style={ { textDecoration: isCancelled ? "line-through" : "none" } }>
+                              {grandTotal.toLocaleString("id-ID")}
+                            </span>
+                          </div>
+                        </td>
+                      </tr>
+                    </>
+                  )}
+                </tbody>
+              </table>
 
-          {/* ===== TANGGAL & TANDA TANGAN ===== */}
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "flex-end",
-              marginTop: 32,
-              pageBreakInside: "avoid",
-            }}
-          >
-            <div style={{ textAlign: "center", minWidth: 160 }}>
-              <p style={{ margin: 0, fontSize: baseSize }}>
-                Jakarta, {todayFormatted}
-              </p>
-              <p style={{ margin: 0, fontSize: baseSize }}>
-                Harmonisindo JayaPart
-              </p>
-              <div style={{ height: 72 }} />
-              <p
-                style={{
-                  margin: 0,
-                  fontSize: baseSize,
-                  fontWeight: 700,
-                  textDecoration: "underline",
-                }}
-              >
-                Hana Khamila
-              </p>
-              <p style={{ margin: 0, fontSize: baseSize }}>Direktur</p>
+              {/* TANGGAL & TANDA TANGAN → HANYA di halaman terakhir */}
+              {isLastPage && (
+                <div style={ { display: "flex", justifyContent: "flex-end", marginTop: 32, pageBreakInside: "avoid" } }>
+                  <div style={ { textAlign: "center", minWidth: 160 } }>
+                    <p style={ { margin: 0, fontSize: baseSize } }>Jakarta, {todayFormatted}</p>
+                    <p style={ { margin: 0, fontSize: baseSize } }>Harmonisindo JayaPart</p>
+                    <div style={ { height: 72 } } />
+                    <p style={ { margin: 0, fontSize: baseSize, fontWeight: 700, textDecoration: "underline" } }>
+                      Hana Khamila
+                    </p>
+                    <p style={ { margin: 0, fontSize: baseSize } }>Direktur</p>
+                  </div>
+                </div>
+              )}
             </div>
-          </div>
-        </div>
+          );
+        })}
       </div>
 
-      {/* ── RIWAYAT PEMBAYARAN ── */}
+      {/* ── RIWAYAT PEMBAYARAN (sekali, di luar loop) ── */}
       {paymentsHistory.length > 0 && (
         <div className="print:hidden w-full max-w-[210mm] mx-auto bg-white border border-slate-300 shadow-sm mt-6 p-6 sm:p-8">
           <h3 className="text-sm font-bold text-slate-800 uppercase border-b-2 border-slate-800 pb-2 mb-4 tracking-wider">
@@ -997,31 +704,19 @@ export default function InvoiceDetailClient({
             <table className="w-full text-left text-xs sm:text-sm border-collapse">
               <thead>
                 <tr className="border-b-2 border-slate-300 bg-slate-50">
-                  <th className="py-2.5 px-3 font-bold text-slate-700 uppercase">
-                    Tanggal
-                  </th>
-                  <th className="py-2.5 px-3 font-bold text-slate-700 uppercase">
-                    Metode / Ref
-                  </th>
-                  <th className="py-2.5 px-3 font-bold text-slate-700 uppercase text-center">
-                    Bukti
-                  </th>
-                  <th className="py-2.5 px-3 font-bold text-slate-700 uppercase text-right">
-                    Nominal (Rp)
-                  </th>
+                  <th className="py-2.5 px-3 font-bold text-slate-700 uppercase">Tanggal</th>
+                  <th className="py-2.5 px-3 font-bold text-slate-700 uppercase">Metode / Ref</th>
+                  <th className="py-2.5 px-3 font-bold text-slate-700 uppercase text-center">Bukti</th>
+                  <th className="py-2.5 px-3 font-bold text-slate-700 uppercase text-right">Nominal (Rp)</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200">
                 {paymentsHistory.map((pay: any, idx: number) => (
                   <tr key={idx} className="hover:bg-slate-50">
-                    <td className="py-3 px-3 text-slate-800 whitespace-nowrap">
-                      {fmtDate(pay.payment_date)}
-                    </td>
+                    <td className="py-3 px-3 text-slate-800 whitespace-nowrap">{fmtDate(pay.payment_date)}</td>
                     <td className="py-3 px-3 text-slate-700 whitespace-nowrap">
                       {pay.payment_method || "Transfer"}
-                      {pay.reference_number
-                        ? ` (Ref: ${pay.reference_number})`
-                        : ""}
+                      {pay.reference_number ? ` (Ref: ${pay.reference_number})` : ""}
                     </td>
                     <td className="py-3 px-3 text-center text-slate-500">
                       {pay.payment_proof_url ? (
@@ -1040,27 +735,13 @@ export default function InvoiceDetailClient({
               </tbody>
               <tfoot className="border-t-2 border-slate-800">
                 <tr>
-                  <td
-                    colSpan={3}
-                    className="py-3 px-3 text-right font-bold text-slate-800 uppercase"
-                  >
-                    Total Dibayar:
-                  </td>
-                  <td className="py-3 px-3 text-right font-black text-slate-900">
-                    Rp {totalPaid.toLocaleString("id-ID")}
-                  </td>
+                  <td colSpan={3} className="py-3 px-3 text-right font-bold text-slate-800 uppercase">Total Dibayar:</td>
+                  <td className="py-3 px-3 text-right font-black text-slate-900">Rp {totalPaid.toLocaleString("id-ID")}</td>
                 </tr>
                 {!isPaid && !isCancelled && (
                   <tr>
-                    <td
-                      colSpan={3}
-                      className="py-2 px-3 text-right font-bold text-slate-600 uppercase"
-                    >
-                      Sisa Piutang:
-                    </td>
-                    <td className="py-2 px-3 text-right font-bold text-rose-600">
-                      Rp {balanceDue.toLocaleString("id-ID")}
-                    </td>
+                    <td colSpan={3} className="py-2 px-3 text-right font-bold text-slate-600 uppercase">Sisa Piutang:</td>
+                    <td className="py-2 px-3 text-right font-bold text-rose-600">Rp {balanceDue.toLocaleString("id-ID")}</td>
                   </tr>
                 )}
               </tfoot>
@@ -1069,152 +750,67 @@ export default function InvoiceDetailClient({
         </div>
       )}
 
-      {/* ── MODAL INPUT PEMBAYARAN ── */}
+      {/* ── MODAL PEMBAYARAN (tak berubah) ── */}
       {isPaymentModalOpen && canRecordPayment && !isCancelled && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex justify-center p-4 print:hidden items-end sm:items-center sm:p-6 overflow-y-auto">
-          <form
-            onSubmit={handlePaymentSubmit}
-            className="bg-white rounded-t-2xl sm:rounded-2xl w-full max-w-md shadow-2xl flex flex-col max-h-[90vh] my-auto animate-in slide-in-from-bottom-10 sm:scale-in-center duration-300"
-          >
+          <form onSubmit={handlePaymentSubmit} className="bg-white rounded-t-2xl sm:rounded-2xl w-full max-w-md shadow-2xl flex flex-col max-h-[90vh] my-auto animate-in slide-in-from-bottom-10 sm:scale-in-center duration-300">
             <div className="shrink-0 bg-emerald-600 p-5 text-white flex justify-between items-center rounded-t-2xl sm:rounded-t-2xl">
               <div>
                 <h2 className="text-xl font-black">Catat Uang Masuk</h2>
-                <p className="text-emerald-100 text-xs font-mono mt-0.5">
-                  {invoice?.invoice_number}
-                </p>
+                <p className="text-emerald-100 text-xs font-mono mt-0.5">{invoice?.invoice_number}</p>
               </div>
-              <button
-                type="button"
-                onClick={() => setIsPaymentModalOpen(false)}
-                className="text-emerald-200 hover:text-white bg-emerald-700/50 hover:bg-emerald-700 p-2 rounded-lg transition-colors"
-              >
-                ✕
-              </button>
+              <button type="button" onClick={() => setIsPaymentModalOpen(false)} className="text-emerald-200 hover:text-white bg-emerald-700/50 hover:bg-emerald-700 p-2 rounded-lg transition-colors">✕</button>
             </div>
-
             <div className="p-6 space-y-5 overflow-y-auto custom-scrollbar">
               <div className="bg-amber-50 text-amber-800 p-4 rounded-xl text-center border border-amber-200 shadow-inner">
-                <span className="label-modern justify-center mb-1 text-amber-700/60">
-                  Sisa Tagihan (Piutang)
-                </span>
-                <span className="text-2xl font-black">
-                  Rp {balanceDue.toLocaleString("id-ID")}
-                </span>
+                <span className="label-modern justify-center mb-1 text-amber-700/60">Sisa Tagihan (Piutang)</span>
+                <span className="text-2xl font-black">Rp {balanceDue.toLocaleString("id-ID")}</span>
               </div>
-
               <div>
                 <label className="label-modern">Nominal Transfer (Rp)</label>
                 <div className="relative">
-                  <span className="absolute left-4 top-3.5 font-black text-slate-400">
-                    Rp
-                  </span>
-                  <input
-                    type="number"
-                    max={balanceDue}
-                    required
-                    value={payAmount === 0 ? "" : payAmount}
-                    onChange={(e) => setPayAmount(Number(e.target.value))}
-                    className="input-modern pl-12 text-lg font-black text-emerald-700 focus:border-emerald-500 focus:ring-emerald-500/20"
-                  />
+                  <span className="absolute left-4 top-3.5 font-black text-slate-400">Rp</span>
+                  <input type="number" max={balanceDue} required value={payAmount === 0 ? "" : payAmount} onChange={(e) => setPayAmount(Number(e.target.value))} className="input-modern pl-12 text-lg font-black text-emerald-700 focus:border-emerald-500 focus:ring-emerald-500/20" />
                 </div>
               </div>
-
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="label-modern">Tanggal Transfer</label>
-                  <input
-                    type="date"
-                    required
-                    value={payDate}
-                    onChange={(e) => setPayDate(e.target.value)}
-                    className="input-modern"
-                  />
+                  <input type="date" required value={payDate} onChange={(e) => setPayDate(e.target.value)} className="input-modern" />
                 </div>
                 <div>
                   <label className="label-modern">No. Referensi Bank</label>
-                  <input
-                    type="text"
-                    placeholder="Mis: TRF-BCA-01"
-                    value={payRef}
-                    onChange={(e) => setPayRef(e.target.value)}
-                    className="input-modern"
-                  />
+                  <input type="text" placeholder="Mis: TRF-BCA-01" value={payRef} onChange={(e) => setPayRef(e.target.value)} className="input-modern" />
                 </div>
               </div>
-
               <div>
-                <label className="label-modern">
-                  Upload Bukti Transfer (Opsional)
-                </label>
+                <label className="label-modern">Upload Bukti Transfer (Opsional)</label>
                 <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-slate-300 border-dashed rounded-xl hover:border-emerald-500 hover:bg-emerald-50/30 transition-colors cursor-pointer relative">
                   <div className="space-y-1 text-center">
-                    <svg
-                      className="mx-auto h-12 w-12 text-slate-400"
-                      stroke="currentColor"
-                      fill="none"
-                      viewBox="0 0 48 48"
-                      aria-hidden="true"
-                    >
-                      <path
-                        d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02"
-                        strokeWidth={2}
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
+                    <svg className="mx-auto h-12 w-12 text-slate-400" stroke="currentColor" fill="none" viewBox="0 0 48 48" aria-hidden="true">
+                      <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
                     </svg>
                     <div className="flex text-sm text-slate-600 justify-center">
                       <label className="relative cursor-pointer bg-white rounded-md font-bold text-emerald-600 hover:text-emerald-500 focus-within:outline-none">
                         <span>Pilih Gambar</span>
-                        <input
-                          type="file"
-                          className="sr-only"
-                          accept="image/*,.pdf"
-                          onChange={(e) =>
-                            setPaymentProofFile(e.target.files?.[0] || null)
-                          }
-                        />
+                        <input type="file" className="sr-only" accept="image/*,.pdf" onChange={(e) => setPaymentProofFile(e.target.files?.[0] || null)} />
                       </label>
                     </div>
-                    <p className="text-[10px] font-bold text-slate-500">
-                      Maks 2MB
-                    </p>
+                    <p className="text-[10px] font-bold text-slate-500">Maks 2MB</p>
                   </div>
-
                   {paymentProofFile && (
                     <div className="absolute inset-0 bg-white/95 rounded-xl flex flex-col items-center justify-center p-4">
                       <span className="text-3xl mb-2">📸</span>
-                      <span className="text-xs font-black text-emerald-700 truncate w-full text-center">
-                        {paymentProofFile.name}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          setPaymentProofFile(null);
-                        }}
-                        className="text-[10px] text-rose-500 font-bold uppercase mt-2 hover:underline"
-                      >
-                        Hapus File
-                      </button>
+                      <span className="text-xs font-black text-emerald-700 truncate w-full text-center">{paymentProofFile.name}</span>
+                      <button type="button" onClick={(e) => { e.preventDefault(); setPaymentProofFile(null); }} className="text-[10px] text-rose-500 font-bold uppercase mt-2 hover:underline">Hapus File</button>
                     </div>
                   )}
                 </div>
               </div>
             </div>
-
             <div className="shrink-0 p-5 bg-slate-50 border-t border-slate-100 flex justify-end gap-3 rounded-b-2xl sm:rounded-b-2xl">
-              <button
-                type="button"
-                onClick={() => setIsPaymentModalOpen(false)}
-                className="btn-secondary"
-              >
-                Batal
-              </button>
-              <button
-                type="submit"
-                disabled={isSubmittingPayment}
-                className="flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-6 py-2.5 rounded-xl shadow-sm disabled:bg-emerald-300 transition-colors"
-              >
+              <button type="button" onClick={() => setIsPaymentModalOpen(false)} className="btn-secondary">Batal</button>
+              <button type="submit" disabled={isSubmittingPayment} className="flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-6 py-2.5 rounded-xl shadow-sm disabled:bg-emerald-300 transition-colors">
                 {isSubmittingPayment ? "Memproses..." : "Simpan Uang Masuk"}
               </button>
             </div>
@@ -1222,82 +818,36 @@ export default function InvoiceDetailClient({
         </div>
       )}
 
-      {/* ── [TAMBAHAN CANCEL INVOICE] MODAL PEMBATALAN ── */}
+      {/* ── MODAL PEMBATALAN (tak berubah) ── */}
       {isCancelModalOpen && canCancelInvoice && !isCancelled && (
         <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-[100] flex justify-center p-4 print:hidden items-center overflow-y-auto">
-          <form
-            onSubmit={handleCancelSubmit}
-            className="bg-white rounded-2xl w-full max-w-md shadow-2xl flex flex-col max-h-[90vh] my-auto animate-in zoom-in-95 duration-300"
-          >
+          <form onSubmit={handleCancelSubmit} className="bg-white rounded-2xl w-full max-w-md shadow-2xl flex flex-col max-h-[90vh] my-auto animate-in zoom-in-95 duration-300">
             <div className="shrink-0 bg-rose-600 p-5 text-white flex justify-between items-center rounded-t-2xl">
               <div>
                 <h2 className="text-xl font-black flex items-center gap-2">
-                  <svg
-                    className="w-6 h-6"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-                    />
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                   </svg>
                   Batalkan Invoice
                 </h2>
-                <p className="text-rose-100 text-xs mt-0.5">
-                  {invoice?.invoice_number}
-                </p>
+                <p className="text-rose-100 text-xs mt-0.5">{invoice?.invoice_number}</p>
               </div>
-              <button
-                type="button"
-                onClick={() => setIsCancelModalOpen(false)}
-                className="text-rose-200 hover:text-white bg-rose-700/50 hover:bg-rose-700 p-2 rounded-lg transition-colors"
-              >
-                ✕
-              </button>
+              <button type="button" onClick={() => setIsCancelModalOpen(false)} className="text-rose-200 hover:text-white bg-rose-700/50 hover:bg-rose-700 p-2 rounded-lg transition-colors">✕</button>
             </div>
-
             <div className="p-6 space-y-5 overflow-y-auto custom-scrollbar">
               <p className="text-sm text-slate-600 leading-relaxed">
-                Tindakan ini{" "}
-                <strong className="text-rose-600">
-                  tidak dapat dibatalkan
-                </strong>
-                . Invoice yang dibatalkan tidak akan dihitung ke dalam laporan
-                KPI dan target pendapatan perusahaan.
+                Tindakan ini <strong className="text-rose-600">tidak dapat dibatalkan</strong>. Invoice yang dibatalkan tidak akan dihitung ke dalam laporan KPI dan target pendapatan perusahaan.
               </p>
-
               <div>
                 <label className="label-modern font-bold text-slate-800">
                   Alasan Pembatalan <span className="text-rose-500">*</span>
                 </label>
-                <textarea
-                  required
-                  rows={4}
-                  value={cancelReason}
-                  onChange={(e) => setCancelReason(e.target.value)}
-                  placeholder="Berikan alasan detail (contoh: Salah input harga, retur barang, dll)"
-                  className="input-modern mt-1 resize-none"
-                />
+                <textarea required rows={4} value={cancelReason} onChange={(e) => setCancelReason(e.target.value)} placeholder="Berikan alasan detail (contoh: Salah input harga, retur barang, dll)" className="input-modern mt-1 resize-none" />
               </div>
             </div>
-
             <div className="shrink-0 p-5 bg-slate-50 border-t border-slate-100 flex justify-end gap-3 rounded-b-2xl">
-              <button
-                type="button"
-                onClick={() => setIsCancelModalOpen(false)}
-                className="btn-secondary"
-              >
-                Kembali
-              </button>
-              <button
-                type="submit"
-                disabled={isSubmittingCancel}
-                className="flex items-center justify-center gap-2 bg-rose-600 hover:bg-rose-700 text-white font-bold px-6 py-2.5 rounded-xl shadow-sm disabled:bg-rose-300 transition-colors"
-              >
+              <button type="button" onClick={() => setIsCancelModalOpen(false)} className="btn-secondary">Kembali</button>
+              <button type="submit" disabled={isSubmittingCancel} className="flex items-center justify-center gap-2 bg-rose-600 hover:bg-rose-700 text-white font-bold px-6 py-2.5 rounded-xl shadow-sm disabled:bg-rose-300 transition-colors">
                 {isSubmittingCancel ? "Memproses..." : "Ya, Batalkan Invoice"}
               </button>
             </div>

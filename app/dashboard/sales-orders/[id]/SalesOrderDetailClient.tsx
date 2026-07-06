@@ -139,53 +139,32 @@ export default function SalesOrderDetailClient({
           <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center md:justify-end gap-2.5 w-full md:w-auto">
             {(isActionable || hasDO || hasInvoice) && (
               <div className="flex items-center gap-2.5 w-full sm:w-auto">
-                {isActionable && !hasDO ? (
+                {/* Tombol Buat DO: tetap tersedia selama SO belum Completed/Cancelled → mendukung DO partial */}
+                {isActionable && (
                   <button
                     onClick={handleCreateDO}
                     className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 h-[42px] px-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-sm transition-colors shadow-sm"
                   >
-                    <svg
-                      className="w-4 h-4"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M9 17a2 2 0 11-4 0 2 2 0 014 0zm10 0a2 2 0 11-4 0 2 2 0 014 0z"
-                      />
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h1m8-1h-3m3 0h2a1 1 0 001-1v-3.586a1 1 0 00-.293-.707l-2.414-2.414A1 1 0 0016.586 8H13v8z"
-                      />
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17a2 2 0 11-4 0 2 2 0 014 0zm10 0a2 2 0 11-4 0 2 2 0 014 0z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h1m8-1h-3m3 0h2a1 1 0 001-1v-3.586a1 1 0 00-.293-.707l-2.414-2.414A1 1 0 0016.586 8H13v8z" />
                     </svg>
                     Buat DO
                   </button>
-                ) : hasDO ? (
+                )}
+
+                {/* Tombol Lihat DO: muncul kalau sudah ada minimal 1 DO */}
+                {hasDO && (
                   <Link
                     href="/dashboard/delivery-orders"
                     className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 h-[42px] px-4 bg-white hover:bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-xl font-bold text-sm transition-colors"
                   >
-                    <svg
-                      className="w-4 h-4"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M5 13l4 4L19 7"
-                      />
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                     </svg>
                     Lihat DO
                   </Link>
-                ) : null}
+                )}
 
                 {isActionable && !hasInvoice ? (
                   <button

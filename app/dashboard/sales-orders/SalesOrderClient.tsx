@@ -37,19 +37,36 @@ export default function SalesOrderClient({ salesOrders }: { salesOrders: any[] }
         so.customers.company_name.toLowerCase().includes(search.toLowerCase()))
   );
 
-  const StatusBadge = ({ status }: { status: string }) => {
-    switch (status) {
-      case 'Open':
-        return <span className="bg-blue-100 text-blue-700 px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider inline-block border border-blue-200">Open</span>;
-      case 'Processing':
-        return <span className="bg-amber-100 text-amber-700 px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider inline-block border border-amber-200">Diproses</span>;
-      case 'Completed':
-        return <span className="badge-success">Selesai</span>;
-      case 'Cancelled':
-        return <span className="badge-danger">Batal</span>;
-      default:
-        return <span className="badge-neutral">{status}</span>;
+  const StatusBadge = ({ status, hasInvoice }: { status: string; hasInvoice: boolean }) => {
+    const base =
+      "px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider inline-block border";
+
+    if (status === 'Cancelled')
+      return <span className="badge-danger">Batal</span>;
+
+    // Tentukan level pengiriman
+    const delivery =
+      status === 'Completed' ? 'full'
+      : status === 'Partial' ? 'partial'
+      : 'none';
+
+    // === SUDAH ada invoice ===
+    if (hasInvoice) {
+      if (delivery === 'full')
+        return <span className={`${base} bg-purple-100 text-purple-700 border-purple-200`}>Terkirim &amp; Ditagih</span>;
+      if (delivery === 'partial')
+        return <span className={`${base} bg-fuchsia-100 text-fuchsia-700 border-fuchsia-200`}>Parsial &amp; Ditagih</span>;
+      // belum kirim tapi sudah ditagih
+      return <span className={`${base} bg-indigo-100 text-indigo-700 border-indigo-200`}>Ditagih</span>;
     }
+
+    // === BELUM ada invoice ===
+    if (delivery === 'full')
+      return <span className={`${base} bg-teal-100 text-teal-700 border-teal-200`}>Terkirim</span>;
+    if (delivery === 'partial')
+      return <span className={`${base} bg-blue-100 text-blue-700 border-blue-200`}>Parsial</span>;
+    // belum apa-apa
+    return <span className="badge-neutral">Open</span>;
   };
 
   const fmtRp = (num: number) => `Rp ${Number(num).toLocaleString('id-ID')}`;
@@ -122,7 +139,7 @@ export default function SalesOrderClient({ salesOrders }: { salesOrders: any[] }
                       {fmtRp(so.grand_total || 0)}
                     </td>
                     <td className="p-4 text-center">
-                      <StatusBadge status={so.status} />
+                      <StatusBadge status={so.status} hasInvoice={so.hasInvoice} />
                     </td>
                     <td className="p-4 text-center">
                       <div className="flex items-center justify-center gap-3">
@@ -160,7 +177,7 @@ export default function SalesOrderClient({ salesOrders }: { salesOrders: any[] }
                       {new Date(so.created_at).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })}
                     </div>
                   </div>
-                  <StatusBadge status={so.status} />
+                  <StatusBadge status={so.status} hasInvoice={so.hasInvoice} />
                 </div>
                 <div>
                   <h3 className="text-sm font-black text-slate-800 uppercase mb-1">
