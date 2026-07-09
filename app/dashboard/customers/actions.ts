@@ -9,6 +9,7 @@ export async function addCustomer(formData: {
   company_name: string;
   email: string;
   phone: string;
+  requires_invoice_on_do: boolean; 
   addresses: {
     id?: string;
     address_type: string;
@@ -26,6 +27,7 @@ export async function addCustomer(formData: {
       company_name: formData.company_name,
       email: formData.email,
       phone: formData.phone,
+      requires_invoice_on_do: formData.requires_invoice_on_do,
     }])
     .select()
     .single();
@@ -57,6 +59,7 @@ export async function updateCustomer(formData: {
   company_name: string;
   email: string;
   phone: string;
+  requires_invoice_on_do: boolean;
   addresses: {
     id?: string;
     address_type: string;
@@ -74,10 +77,32 @@ export async function updateCustomer(formData: {
       company_name: formData.company_name,
       email: formData.email,
       phone: formData.phone,
+      requires_invoice_on_do: formData.requires_invoice_on_do,
     })
     .eq('id', formData.id);
 
   if (custError) throw new Error(custError.message);
+
+  // ▼▼▼ BARU: hapus alamat yang dibuang user dari modal ▼▼▼
+  const { data: existing } = await supabase
+    .from('customer_addresses')
+    .select('id')
+    .eq('customer_id', formData.id);
+
+  const keptIds = new Set(
+    formData.addresses.filter(a => a.id).map(a => a.id)
+  );
+  const toDelete = (existing ?? [])
+    .filter(row => !keptIds.has(row.id))
+    .map(row => row.id);
+
+  if (toDelete.length > 0) {
+    const { error } = await supabase
+      .from('customer_addresses')
+      .delete()
+      .in('id', toDelete);
+    if (error) throw new Error(error.message);
+  }
 
   const toUpdate = formData.addresses.filter(a => a.id);
   const toInsert = formData.addresses.filter(a => !a.id);

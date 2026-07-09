@@ -473,7 +473,7 @@ export default function QuotationDetailClient({
               <col style={{ width: 93 }} /> {/* Unit Price */}
               <col style={{ width: 35 }} /> {/* Disc */}
               <col /> {/* Amount */}
-              <col style={{ width: 55 }} /> {/* Remark */}
+              <col style={{ width: 65 }} /> {/* Remark */}
             </colgroup>
             <thead>
               <tr>
@@ -534,7 +534,7 @@ export default function QuotationDetailClient({
                       <span>{item.total_price?.toLocaleString("id-ID")}</span>
                     </div>
                   </td>
-                  <td style={{ ...tdItem, textAlign: "center" }}>
+                  <td style={{ ...tdItem, textAlign: "center" }} className="whitespace-normal break-all">
                     {item.products?.remark || ""}
                   </td>
                 </tr>

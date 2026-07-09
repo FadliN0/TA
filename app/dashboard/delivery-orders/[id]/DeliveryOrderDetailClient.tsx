@@ -10,6 +10,7 @@ export default function DeliveryOrderDetailClient({
   shippingAddress,
   items,
   isPartialDelivery,
+  invoiceNumber,
 }: {
   deliveryOrder: any;
   salesOrder: any;
@@ -18,6 +19,7 @@ export default function DeliveryOrderDetailClient({
   shippingAddress: any;
   items: any[];
   isPartialDelivery: boolean;
+  invoiceNumber: string | null;
 }) {
   const handlePrint = () => window.print();
   const totalQty = items.reduce((sum, item) => sum + (item.qty_delivered || 0), 0);
@@ -103,6 +105,11 @@ export default function DeliveryOrderDetailClient({
                   {new Date(deliveryOrder.delivery_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' })}
                 </div>
                 <div style={{ fontSize: 10, color: '#444', fontWeight: 'bold' }}>REF PO: {salesOrder?.po_number?.toUpperCase() || '-'}</div>
+                {invoiceNumber && (
+                  <div  style={{ fontSize: 10, color: '#444', fontWeight: 'bold' }}>
+                    REF INV: {invoiceNumber.toUpperCase()}
+                  </div>
+                )}
               </div>
               
             </div>

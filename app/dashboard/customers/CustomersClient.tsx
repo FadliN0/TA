@@ -19,6 +19,7 @@ interface Customer {
   company_name: string;
   email: string;
   phone: string;
+  requires_invoice_on_do: boolean;
   customer_addresses: Address[];
 }
 
@@ -31,6 +32,7 @@ const emptyForm = {
   company_name: '',
   email: '',
   phone: '',
+  requires_invoice_on_do: false,
   addresses: [
     { id: '', address_type: 'Billing', pic_name: '', pic_phone: '', complete_address: '', is_default: true },
   ],
@@ -59,6 +61,7 @@ export default function CustomersClient({ initialCustomers }: Props) {
         company_name: customer.company_name || '',
         email: customer.email || '',
         phone: customer.phone || '',
+        requires_invoice_on_do: customer.requires_invoice_on_do || false,
         addresses: customer.customer_addresses?.length > 0
           ? customer.customer_addresses
           : [{ id: '', address_type: 'Billing', pic_name: '', pic_phone: '', complete_address: '', is_default: true }],
@@ -264,6 +267,24 @@ export default function CustomersClient({ initialCustomers }: Props) {
                 <label className="label-modern">Telp Kantor</label>
                 <input type="text" value={formData.phone} onChange={e => setFormData({ ...formData, phone: e.target.value })} className="input-modern" placeholder="(021) 1234567" />
               </div>
+              <label className="flex items-center gap-2.5 mt-2 p-3 bg-slate-50 rounded-xl border border-slate-200 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={formData.requires_invoice_on_do}
+                  onChange={e =>
+                    setFormData({ ...formData, requires_invoice_on_do: e.target.checked })
+                  }
+                  className="w-4 h-4 accent-teal-600"
+                />
+                <div>
+                  <span className="text-sm font-bold text-slate-700 block">
+                    Tampilkan No. Invoice di Surat Jalan (DO)
+                  </span>
+                  <span className="text-xs text-slate-500">
+                    Aktifkan untuk klien yang membayar dulu sebelum barang dikirim.
+                  </span>
+                </div>
+              </label>
             </div>
           </div>
 

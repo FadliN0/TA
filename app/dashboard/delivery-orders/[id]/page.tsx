@@ -16,7 +16,15 @@ export default async function DeliveryOrderDetailPage({
   // ── TAHAP 1: deliveryOrder (untuk guard + so_id + address_id) ──
   const { data: deliveryOrder } = await supabase
     .from('delivery_orders')
-    .select('*')
+    .select(`
+      *,
+      sales_orders (
+        po_number,
+        customer_id,
+        invoices ( invoice_number, status )
+      ),
+      delivery_order_items ( *, sales_order_items ( *, products ( * ) ) )
+    `)
     .eq('id', id)
     .single();
 
@@ -102,6 +110,22 @@ export default async function DeliveryOrderDetailPage({
     }
   }
 
+  // ── Ambil nomor invoice (via relasi di TAHAP 1) ──
+  // sales_orders bisa objek atau array tergantung Supabase → amankan keduanya
+  const soEmbedded = Array.isArray(deliveryOrder.sales_orders)
+    ? deliveryOrder.sales_orders[0]
+    : deliveryOrder.sales_orders;
+
+  // invoices adalah relasi to-many → berupa array; 1 SO = 1 invoice → ambil [0]
+  const invoiceRow = Array.isArray(soEmbedded?.invoices)
+    ? soEmbedded.invoices[0]
+    : soEmbedded?.invoices;
+
+  // Hanya isi jika flag customer aktif; selain itu null (baris REF INV tak muncul)
+  const invoiceNumber = customer?.requires_invoice_on_do
+    ? (invoiceRow?.invoice_number ?? null)
+    : null;
+
   // ── NORMALISASI items: pastikan sales_order_items & products berupa OBJEK tunggal ──
   // (Supabase kadang mengembalikan relasi embedded sebagai array)
   const items = rawItems.map((item: any) => {
@@ -148,6 +172,7 @@ export default async function DeliveryOrderDetailPage({
       shippingAddress={shippingAddress}
       items={items}
       isPartialDelivery={isPartialDelivery}
+      invoiceNumber={invoiceNumber}
     />
   );
 }

@@ -21,7 +21,7 @@ type InvoiceDetailClientProps = {
 };
 
 // ==== Kapasitas item per halaman (SAMA RATA tiap halaman) ====
-const ROWS_PER_PAGE = 12;
+const ROWS_PER_PAGE = 8;
 
 function paginateItems<T>(list: T[]): T[][] {
   if (list.length === 0) return [[]];
@@ -625,23 +625,23 @@ export default function InvoiceDetailClient({
                         <td
                           colSpan={4}
                           rowSpan={3}
-                          style={ { border: borderCell, borderTop: "3px double #000", padding: "10px 14px", verticalAlign: "center"} }
+                          style={ { border: borderCell, borderTop: "3px double #000", padding: "1px 14px", verticalAlign: "center"} }
                         >
-                          <p style={ { margin: "0 0 6px", fontWeight: 900, textDecoration: "underline" } }>
+                          <p style={ { margin: "0 0 6px", fontWeight: 900, fontSize: "13ERTYUIOO0``  px", textDecoration: "underline" } }>
                             PAYMENT INSTRUCTION / NOTES :
                           </p>
                           <textarea
                             value={invoiceNote}
                             onChange={(e) => setInvoiceNote(e.target.value)}
                             disabled={!isEditable}
-                            className="w-full h-24 bg-transparent border-none outline-none resize-none text-[11px] leading-relaxed disabled:text-black font-medium"
+                            className="w-full h-16 bg-transparent border-none outline-none resize-none text-[13px] leading-relaxed disabled:text-black font-medium"
                             placeholder="Tulis instruksi transfer di sini..."
                           />
                         </td>
-                        <td style={ { border: borderCell, borderTop: "3px double #000", padding: "6px 10px", fontWeight: 700 } }>
+                        <td style={ { border: borderCell, borderTop: "3px double #000", padding: "3px 10px", fontWeight: 700 } }>
                           Sub Total
                         </td>
-                        <td colSpan={2} style={ { border: borderCell, borderTop: "3px double #000", padding: "6px 8px" } }>
+                        <td colSpan={2} style={ { border: borderCell, borderTop: "3px double #000", padding: "3px 8px" } }>
                           <div style={ { display: "flex", justifyContent: "space-between" } }>
                             <span>Rp</span>
                             <span style={ { textDecoration: isCancelled ? "line-through" : "none" } }>
@@ -651,8 +651,8 @@ export default function InvoiceDetailClient({
                         </td>
                       </tr>
                       <tr>
-                        <td style={ { border: borderCell, padding: "6px 10px", fontWeight: 700 } }>Discount</td>
-                        <td colSpan={2} style={ { border: borderCell, padding: "6px 8px" } }>
+                        <td style={ { border: borderCell, padding: "3px 10px", fontWeight: 700 } }>Discount</td>
+                        <td colSpan={2} style={ { border: borderCell, padding: "3px 8px" } }>
                           <div style={ { display: "flex", justifyContent: "space-between", color: discountInput > 0 ? "#e11d48" : "#000" } }>
                             <span>Rp</span>
                             <span>{discountInput > 0 ? discountInput.toLocaleString("id-ID") : "-"}</span>
@@ -660,8 +660,8 @@ export default function InvoiceDetailClient({
                         </td>
                       </tr>
                       <tr>
-                        <td style={ { border: borderCell, padding: "6px 10px", fontWeight: 700 } }>Total</td>
-                        <td colSpan={2} style={ { border: borderCell, padding: "6px 8px", fontWeight: 900 } }>
+                        <td style={ { border: borderCell, padding: "3px 10px", fontWeight: 700 } }>Total</td>
+                        <td colSpan={2} style={ { border: borderCell, padding: "3px 8px", fontWeight: 900 } }>
                           <div style={ { display: "flex", justifyContent: "space-between" } }>
                             <span>Rp</span>
                             <span style={ { textDecoration: isCancelled ? "line-through" : "none" } }>
@@ -678,10 +678,10 @@ export default function InvoiceDetailClient({
               {/* TANGGAL & TANDA TANGAN → HANYA di halaman terakhir */}
               {isLastPage && (
                 <div style={ { display: "flex", justifyContent: "flex-end", marginTop: 32, pageBreakInside: "avoid" } }>
-                  <div style={ { textAlign: "center", minWidth: 160 } }>
+                  <div style={ { textAlign: "center", minWidth: 150 } }>
                     <p style={ { margin: 0, fontSize: baseSize } }>Jakarta, {todayFormatted}</p>
                     <p style={ { margin: 0, fontSize: baseSize } }>Harmonisindo JayaPart</p>
-                    <div style={ { height: 72 } } />
+                    <div style={ { height: 130 } } />
                     <p style={ { margin: 0, fontSize: baseSize, fontWeight: 700, textDecoration: "underline" } }>
                       Hana Khamila
                     </p>
