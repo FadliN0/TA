@@ -65,13 +65,26 @@
   }
 
   @media print {
-    @page { 
-      margin: 0; 
-      size: A4;   
-    }     
-    body { 
-      -webkit-print-color-adjust: exact; 
-      print-color-adjust: exact; 
+    @page {
+      size: A4;
+      margin: 0;
+    }
+
+    html, body {
+      margin: 0 !important;
+      padding: 0 !important;
+      height: auto !important;
+    }
+
+    .invoice-sheet {
+      margin: 0 !important;
+      box-shadow: none !important;
+      min-height: 0 !important;
+    }
+
+    .invoice-sheet:last-child {
+      break-after: auto !important;
+      page-break-after: auto !important;
     }
   }
 }

@@ -379,7 +379,7 @@ export default function InvoiceDetailClient({
               className="invoice-sheet bg-white print:shadow-none print:border-none print:rounded-none relative overflow-hidden shadow-xl border border-slate-200 mx-auto mb-8 print:mb-0"
               style={ {
                 width: "210mm",
-                minHeight: "297mm",
+                minHeight: "296mm",
                 padding: "20mm",
                 boxSizing: "border-box",
                 fontFamily: font,

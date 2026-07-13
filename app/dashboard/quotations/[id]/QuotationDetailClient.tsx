@@ -467,13 +467,13 @@ export default function QuotationDetailClient({
             <colgroup>
               <col style={{ width: 30 }} /> {/* No */}
               <col style={{ width: 95 }} /> {/* Part Number */}
-              <col style={{ width: 160 }} /> {/* Description */}
+              <col style={{ width: 150 }} /> {/* Description */}
               <col style={{ width: 32 }} /> {/* Qty */}
               <col style={{ width: 32 }} /> {/* Unit */}
               <col style={{ width: 93 }} /> {/* Unit Price */}
               <col style={{ width: 35 }} /> {/* Disc */}
               <col /> {/* Amount */}
-              <col style={{ width: 65 }} /> {/* Remark */}
+              <col style={{ width: 73 }} /> {/* Remark */}
             </colgroup>
             <thead>
               <tr>
@@ -633,7 +633,7 @@ export default function QuotationDetailClient({
                 style={{
                   margin: 0,
                   fontSize: 11,
-                  fontWeight: 700,
+                  fontWeight: 700,  
                   textTransform: "capitalize",
                   textDecoration: "underline",
                 }}
