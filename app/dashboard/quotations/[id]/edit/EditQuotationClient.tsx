@@ -20,6 +20,7 @@ type EditQuotationClientProps = {
   initialMrNumber: string;
   initialNotes: string;
   initialItems: any[];
+  initialGrandTotal: number;
 };
 
 export default function EditQuotationClient({
@@ -34,6 +35,7 @@ export default function EditQuotationClient({
   initialMrNumber,
   initialNotes,
   initialItems,
+  initialGrandTotal,
 }: EditQuotationClientProps) {
   const router = useRouter();
   const toast = useToast();
@@ -52,9 +54,29 @@ export default function EditQuotationClient({
   const [selectedAddressId, setSelectedAddressId] = useState(initialAddressId);
   const [mrNumber, setMrNumber] = useState(initialMrNumber);
   const [notes, setNotes] = useState(initialNotes);
+
+  // Diskon nominal manual (tingkat dokumen). Hanya dihitung di sisi client,
+  // TIDAK disimpan ke database. Nilai awal dipulihkan dari selisih sub total
+  // item dengan grand total yang tersimpan (jika dulu ada diskon nominal).
+  const [discountNominal, setDiscountNominal] = useState(() => {
+    const initSub = (initialItems || []).reduce((sum: number, i: any) => {
+      const lineTotal = (i.qty || 0) * (i.unit_price || 0);
+      const disc = lineTotal * ((i.discount || 0) / 100);
+      return sum + (lineTotal - disc);
+    }, 0);
+    const diff = Math.round(initSub - (initialGrandTotal || 0));
+    return diff > 0 ? diff : 0;
+  });
   // Bawa field `search` untuk combobox part code (diisi dari part_code awal)
   const [items, setItems] = useState<any[]>(
-    initialItems.map((i) => ({ ...i, search: i.part_code || "" })),
+    initialItems.map((i) => ({
+      ...i,
+      search: i.part_code || "",
+      discountRaw:
+        i.discount !== undefined && i.discount !== null && i.discount !== 0
+          ? String(i.discount).replace(".", ",")
+          : "",
+    })),
   );
 
   // Kontrol combobox part code
@@ -134,11 +156,40 @@ export default function EditQuotationClient({
     setItems(newItems);
   };
 
-  const grandTotal = items.reduce((sum, i) => {
+  // Diskon per item mendukung desimal dengan koma, misal "22,22" (maks 100%)
+  const updateDiscount = (index: number, rawText: string) => {
+    let cleaned = rawText.replace(/[^\d.,]/g, "").replace(/\./g, ",");
+    const parts = cleaned.split(",");
+    let display = parts[0].slice(0, 3);
+    if (parts.length > 1) {
+      display =
+        parts[0].slice(0, 3) + "," + parts.slice(1).join("").slice(0, 2);
+    }
+    let num = display ? parseFloat(display.replace(",", ".")) : 0;
+    if (isNaN(num)) num = 0;
+    if (num > 100) {
+      num = 100;
+      display = "100";
+    }
+    const newItems = [...items];
+    newItems[index] = {
+      ...newItems[index],
+      discount: num,
+      discountRaw: display,
+    };
+    setItems(newItems);
+  };
+
+  // Sub total = hasil sum amount tiap item (sudah termasuk diskon % per item)
+  const subTotal = items.reduce((sum, i) => {
     const lineTotal = i.qty * i.unit_price;
     const discountAmount = lineTotal * ((i.discount || 0) / 100);
     return sum + (lineTotal - discountAmount);
   }, 0);
+
+  // Cek apakah user input diskon nominal manual. Jika tidak, grand total = sub total.
+  // Jika ada, kurangi sub total dengan diskon nominal tersebut.
+  const grandTotal = Math.max(0, subTotal - (discountNominal || 0));
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -518,15 +569,16 @@ export default function EditQuotationClient({
                       <label className="md:hidden label-modern">Diskon %</label>
                       <input
                         type="text"
-                        inputMode="numeric"
+                        inputMode="decimal"
                         placeholder="0"
-                        value={item.discount ? item.discount : ""}
-                        onChange={(e) => {
-                          const digits = e.target.value.replace(/\D/g, "");
-                          let num = digits ? parseInt(digits, 10) : 0;
-                          if (num > 100) num = 100;
-                          updateItemField(idx, "discount", num);
-                        }}
+                        value={
+                          item.discountRaw !== undefined
+                            ? item.discountRaw
+                            : item.discount
+                              ? String(item.discount).replace(".", ",")
+                              : ""
+                        }
+                        onChange={(e) => updateDiscount(idx, e.target.value)}
                         className="input-modern py-2 text-center text-xs font-bold text-rose-600 bg-rose-50 focus:bg-white border-rose-100 focus:border-rose-300"
                       />
                     </div>
@@ -608,6 +660,7 @@ export default function EditQuotationClient({
                       qty: 1,
                       unit_price: 0,
                       discount: 0,
+                      discountRaw: "",
                       remark: "",
                       search: "",
                       _db_price: 0,
@@ -651,7 +704,42 @@ export default function EditQuotationClient({
             />
           </div>
           <div className="flex-[0.7] flex flex-col justify-end items-start md:items-end gap-4 border-t md:border-t-0 md:border-l border-slate-700 pt-6 md:pt-0 md:pl-8">
-            <div className="w-full text-left md:text-right">
+            <div className="w-full flex justify-between items-center gap-4">
+              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                Sub Total
+              </span>
+              <span className="text-sm font-bold text-slate-200">
+                Rp {subTotal.toLocaleString("id-ID")}
+              </span>
+            </div>
+
+            <div className="w-full flex justify-between items-center gap-4">
+              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                Diskon (Rp)
+              </span>
+              <div className="flex items-center gap-1">
+                <span className="text-sm font-bold text-rose-300">Rp</span>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="0"
+                  value={
+                    discountNominal
+                      ? discountNominal.toLocaleString("id-ID")
+                      : ""
+                  }
+                  onChange={(e) => {
+                    const digits = e.target.value.replace(/\D/g, "");
+                    let num = digits ? parseInt(digits, 10) : 0;
+                    if (num > subTotal) num = subTotal; // tidak boleh melebihi sub total
+                    setDiscountNominal(num);
+                  }}
+                  className="w-32 bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-right font-bold text-rose-300 focus:ring-2 focus:ring-rose-500 outline-none"
+                />
+              </div>
+            </div>
+
+            <div className="w-full text-left md:text-right border-t border-slate-700 pt-3">
               <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">
                 Grand Total
               </p>

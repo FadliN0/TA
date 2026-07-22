@@ -61,6 +61,18 @@ export default function QuotationDetailClient({
   const [quotation, setQuotation] = useState<any>(initialQuotation);
   const [existingSO, setExistingSO] = useState<any>(initialExistingSO);
 
+  // Sub total = jumlah amount tiap item. Diskon nominal (tingkat dokumen) TIDAK
+  // disimpan di database, jadi diturunkan dari selisih sub total dengan grand
+  // total yang tersimpan. Hanya ditampilkan di surat bila memang ada diskon.
+  const subTotal = (items || []).reduce(
+    (sum: number, i: any) => sum + (i.total_price || 0),
+    0,
+  );
+  const discountAmount = Math.max(
+    0,
+    Math.round(subTotal - (initialQuotation?.grand_total || 0)),
+  );
+
   const [isCreatingSO, setIsCreatingSO] = useState(false);
   const [isPOModalOpen, setIsPOModalOpen] = useState(false);
   const [poInput, setPoInput] = useState("");
@@ -350,13 +362,13 @@ export default function QuotationDetailClient({
             }}
           >
             <colgroup>
-              <col style={{ width: 50 }} />   {/* label kiri */}
-              <col style={{ width: 10 }} />   {/* titik dua kiri */}
-              <col />                          {/* value kiri (fleksibel, nampung address) */}
-              <col style={{ width: 24 }} />   {/* jarak antar kolom */}
-              <col style={{ width: 55 }} />   {/* label kanan */}
-              <col style={{ width: 10 }} />   {/* titik dua kanan */}
-              <col style={{ width: 130 }} />  {/* value kanan */}
+              <col style={{ width: 50 }} /> {/* label kiri */}
+              <col style={{ width: 10 }} /> {/* titik dua kiri */}
+              <col /> {/* value kiri (fleksibel, nampung address) */}
+              <col style={{ width: 24 }} /> {/* jarak antar kolom */}
+              <col style={{ width: 55 }} /> {/* label kanan */}
+              <col style={{ width: 10 }} /> {/* titik dua kanan */}
+              <col style={{ width: 130 }} /> {/* value kanan */}
             </colgroup>
             <tbody>
               {/* Baris 1: TO | No */}
@@ -376,7 +388,9 @@ export default function QuotationDetailClient({
                 <td />
                 <td style={{ ...tdLabel, verticalAlign: "top" }}>No</td>
                 <td style={{ ...tdColon, verticalAlign: "top" }}>:</td>
-                <td style={{ ...tdValue, verticalAlign: "top", fontWeight: 700 }}>
+                <td
+                  style={{ ...tdValue, verticalAlign: "top", fontWeight: 700 }}
+                >
                   {quotation.quotation_number}
                 </td>
               </tr>
@@ -387,7 +401,6 @@ export default function QuotationDetailClient({
                 <td style={{ ...tdColon, verticalAlign: "top" }}>:</td>
                 <td
                   style={{
-
                     ...tdValue,
                     verticalAlign: "top",
                     whiteSpace: "pre-wrap",
@@ -399,7 +412,9 @@ export default function QuotationDetailClient({
                 <td />
                 <td style={{ ...tdLabel, verticalAlign: "top" }}>MR No</td>
                 <td style={{ ...tdColon, verticalAlign: "top" }}>:</td>
-                <td style={{ ...tdValue, verticalAlign: "top", fontWeight: 500 }}>
+                <td
+                  style={{ ...tdValue, verticalAlign: "top", fontWeight: 500 }}
+                >
                   {quotation.mr_number || "-"}
                 </td>
               </tr>
@@ -447,7 +462,7 @@ export default function QuotationDetailClient({
                 <td style={{ ...tdValue, verticalAlign: "top" }} />
                 <td />
                 <td style={{ ...tdLabel, verticalAlign: "top" }}>Attn</td>
-                <td style={{ ...tdColon, verticalAlign: "top" } }>:</td>
+                <td style={{ ...tdColon, verticalAlign: "top" }}>:</td>
                 <td style={{ ...tdValue, verticalAlign: "top" }}>
                   {address?.pic_name || ""}
                 </td>
@@ -519,7 +534,9 @@ export default function QuotationDetailClient({
                     </div>
                   </td>
                   <td style={{ ...tdItem, textAlign: "center" }}>
-                    {item.discount > 0 ? `${item.discount}%` : ""}
+                    {item.discount > 0
+                      ? `${String(item.discount).replace(".", ",")}%`
+                      : ""}
                   </td>
                   <td
                     style={{ ...tdItem, whiteSpace: "nowrap", fontWeight: 200 }}
@@ -534,7 +551,10 @@ export default function QuotationDetailClient({
                       <span>{item.total_price?.toLocaleString("id-ID")}</span>
                     </div>
                   </td>
-                  <td style={{ ...tdItem, textAlign: "center" }} className="whitespace-normal break-all">
+                  <td
+                    style={{ ...tdItem, textAlign: "center" }}
+                    className="whitespace-normal break-all"
+                  >
                     {item.products?.remark || ""}
                   </td>
                 </tr>
@@ -551,6 +571,78 @@ export default function QuotationDetailClient({
                 ),
               )}
 
+              {/* ── BARIS SUB TOTAL & DISCOUNT (hanya bila ada diskon nominal) ── */}
+              {discountAmount > 0 && (
+                <>
+                  <tr style={{ pageBreakInside: "avoid" }}>
+                    <td
+                      colSpan={7}
+                      style={{
+                        ...tdItem,
+                        textAlign: "right",
+                        fontWeight: 700,
+                        border: "none",
+                        borderTop: "1px solid #bbb",
+                      }}
+                    >
+                      Sub Total
+                    </td>
+                    <td
+                      style={{
+                        ...tdItem,
+                        fontWeight: 700,
+                        whiteSpace: "nowrap",
+                        borderTop: "1px solid #bbb",
+                      }}
+                    >
+                      <div
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                        }}
+                      >
+                        <span>Rp.</span>
+                        <span>{subTotal.toLocaleString("id-ID")}</span>
+                      </div>
+                    </td>
+                    <td
+                      style={{ border: "none", borderTop: "1px solid #bbb" }}
+                    />
+                  </tr>
+                  <tr style={{ pageBreakInside: "avoid" }}>
+                    <td
+                      colSpan={7}
+                      style={{
+                        ...tdItem,
+                        textAlign: "right",
+                        fontWeight: 700,
+                        border: "none",
+                      }}
+                    >
+                      Discount
+                    </td>
+                    <td
+                      style={{
+                        ...tdItem,
+                        fontWeight: 700,
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      <div
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                        }}
+                      >
+                        <span>Rp.</span>
+                        <span>{discountAmount.toLocaleString("id-ID")}</span>
+                      </div>
+                    </td>
+                    <td style={{ border: "none" }} />
+                  </tr>
+                </>
+              )}
+
               {/* ── BARIS TOTAL ── */}
               <tr style={{ pageBreakInside: "avoid" }}>
                 <td
@@ -560,7 +652,7 @@ export default function QuotationDetailClient({
                     textAlign: "right",
                     fontWeight: 700,
                     border: "none",
-                    borderTop: "1px solid #bbb",
+                  
                   }}
                 >
                   Total
@@ -577,7 +669,7 @@ export default function QuotationDetailClient({
                     </span>
                   </div>
                 </td>
-                <td style={{ border: "none", borderTop: "1px solid #bbb" }} />
+                <td style={{ border: "none" }} />
               </tr>
             </tbody>
           </table>
@@ -633,7 +725,7 @@ export default function QuotationDetailClient({
                 style={{
                   margin: 0,
                   fontSize: 11,
-                  fontWeight: 700,  
+                  fontWeight: 700,
                   textTransform: "capitalize",
                   textDecoration: "underline",
                 }}
