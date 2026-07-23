@@ -1,11 +1,11 @@
-import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
+import { createClient } from '@/lib/supabaseServer';
 import { cookies } from 'next/headers';
 import ReportsClient from './ReportsClient';
 
 export const dynamic = 'force-dynamic';
 
 export default async function AdvancedReportsPage() {
-  const supabase = createServerComponentClient({ cookies });
+  const supabase = await createClient();
 
   // Data klien ditarik sekali di server, dipakai bersama oleh kedua tab
   const { data: customers } = await supabase

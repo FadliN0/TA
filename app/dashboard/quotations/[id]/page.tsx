@@ -1,4 +1,4 @@
-import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
+import { createClient } from '@/lib/supabaseServer';
 import { cookies } from 'next/headers';
 import { notFound } from 'next/navigation';
 import QuotationDetailClient from './QuotationDetailClient';
@@ -11,7 +11,7 @@ export default async function QuotationDetailPage({
   params: { id: string };
 }) {
   const { id } = params;
-  const supabase = createServerComponentClient({ cookies });
+  const supabase = await createClient();
 
   const { data: quotation } = await supabase
     .from('quotations')

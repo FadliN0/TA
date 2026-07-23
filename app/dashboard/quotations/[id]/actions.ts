@@ -1,6 +1,6 @@
 'use server';
 
-import { createServerClient } from '@/lib/supabaseServer';
+import { createClient } from '@/lib/supabaseServer';
 import { revalidatePath } from 'next/cache';
 
 type ActionResult = { success: boolean; error?: string };
@@ -9,7 +9,7 @@ export async function updateQuotationStatusAction(
   id: string,
   newStatus: string,
 ): Promise<ActionResult> {
-  const supabase = createServerClient();
+  const supabase = await createClient();
   try {
     const { error } = await supabase
       .from('quotations')
@@ -35,7 +35,7 @@ type GenerateSOPayload = {
 export async function generateSalesOrderAction(
   payload: GenerateSOPayload,
 ): Promise<{ success: boolean; data?: any; error?: string }> {
-  const supabase = createServerClient();
+  const supabase = await createClient();
   try {
     const { data, error } = await supabase.rpc('generate_sales_order', {
       p_quotation_id: payload.quotationId,

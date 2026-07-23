@@ -1,11 +1,10 @@
-import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
-import { cookies } from 'next/headers';
+import { createClient } from '@/lib/supabaseServer';
 import QuotationClient from './QuotationClient';
 
 export const dynamic = 'force-dynamic';
 
 export default async function QuotationsPage() {
-  const supabase = createServerComponentClient({ cookies });
+  const supabase = await createClient();
 
   const { data: quotations } = await supabase
     .from('quotations')

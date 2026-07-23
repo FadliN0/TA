@@ -1,6 +1,6 @@
 'use server';
 
-import { createServerClient } from '@/lib/supabaseServer';
+import { createClient } from '@/lib/supabaseServer';
 import { revalidatePath } from 'next/cache';
 
 type ActionResult = { success: boolean; error?: string };
@@ -16,7 +16,7 @@ type ProductPayload = {
 export async function createProductAction(
   payload: ProductPayload,
 ): Promise<ActionResult> {
-  const supabase = createServerClient();
+  const supabase = await createClient();
   try {
     const { error } = await supabase.from('products').insert([payload]);
     if (error) throw error;
@@ -31,7 +31,7 @@ export async function updateProductAction(
   id: string,
   payload: ProductPayload,
 ): Promise<ActionResult> {
-  const supabase = createServerClient();
+  const supabase = await createClient();
   try {
     const { error } = await supabase
       .from('products')
@@ -46,7 +46,7 @@ export async function updateProductAction(
 }
 
 export async function deleteProductAction(id: string): Promise<ActionResult> {
-  const supabase = createServerClient();
+  const supabase = await createClient();
   try {
     const { error } = await supabase.from('products').delete().eq('id', id);
     if (error) throw error;
@@ -64,7 +64,7 @@ export async function deleteProductAction(id: string): Promise<ActionResult> {
 export async function smartPasteUpsertAction(
   products: ProductPayload[],
 ): Promise<ActionResult> {
-  const supabase = createServerClient();
+  const supabase = await createClient();
   try {
     const { error } = await supabase
       .from('products')

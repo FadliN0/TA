@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
+import { supabase } from '@/lib/supabase'; // Hanya dipertahankan untuk Kueri SELECT (Read-only) riwayat tren
 import Link from "next/link";
 import { useToast } from "@/components/ui/Alert";
 import {
@@ -43,15 +43,15 @@ export default function InvoiceDetailClient({
   const router = useRouter();
   const id = invoice.id;
 
-  const supabaseClient = createClientComponentClient();
+
   const [userRole, setUserRole] = useState<string | null>(null);
   useEffect(() => {
     const fetchRole = async () => {
       const {
         data: { session },
-      } = await supabaseClient.auth.getSession();
+      } = await supabase.auth.getSession();
       if (!session) return;
-      const { data: profileData } = await supabaseClient
+      const { data: profileData } = await supabase
         .from("profiles")
         .select("role")
         .eq("id", session.user.id)

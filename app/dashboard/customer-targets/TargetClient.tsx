@@ -2,8 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { supabase } from '@/lib/supabase'; // Hanya dipertahankan untuk Kueri SELECT (Read-only) riwayat tren
-import { saveCompanyTargetAction, saveCustomerTargetAction } from './actions';
+import { getCustomerHistoryAction, saveCompanyTargetAction, saveCustomerTargetAction } from './actions';
 
 // ─── ICONS ────────────────────────────────────────────────────────────────────
 const IconTarget = () => <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>;
@@ -139,7 +138,8 @@ export default function TargetManagementClient({
     setHistoryLoading(true);
     try {
       // Pembacaan grafik histori tidak memerlukan mutasi, jadi bisa memakai client statis
-      const { data } = await supabase.from('v_transaction_lifecycle').select('invoice_date, payment_status, total_order_value').eq('customer_id', cust.id).order('invoice_date', { ascending: false });
+      const res = await getCustomerHistoryAction(cust.id);  // ← panggil server
+      const data = res.data;
       const trend = [];
       for (let i = 5; i >= 0; i--) {
         const d = new Date(initialYear, initialMonth - 1, 1);

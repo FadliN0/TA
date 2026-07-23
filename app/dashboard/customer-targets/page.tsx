@@ -1,6 +1,5 @@
 // app/dashboard/customer-targets/page.tsx
-import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
-import { cookies } from 'next/headers';
+import { createClient } from '@/lib/supabaseServer';
 import TargetManagementClient from './TargetClient';
 
 export const dynamic = 'force-dynamic'; 
@@ -10,7 +9,7 @@ export default async function TargetManagementPage({
 }: {
   searchParams: { month?: string; year?: string };
 }) {
-  const supabase = createServerComponentClient({ cookies });
+  const supabase = await createClient();
 
   // Sinkron → siapkan dulu (tak ada await)
   const currentMonth = searchParams.month

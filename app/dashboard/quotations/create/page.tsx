@@ -1,11 +1,11 @@
-import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
+import { createClient } from '@/lib/supabaseServer';
 import { cookies } from 'next/headers';
 import CreateQuotationClient from './CreateQuotationClient';
 
 export const dynamic = 'force-dynamic';
 
 export default async function CreateQuotationPage() {
-  const supabase = createServerComponentClient({ cookies });
+  const supabase = await createClient();
 
   // Perhitungan sinkron (tanpa await) → siapkan dulu
   const today = new Date();

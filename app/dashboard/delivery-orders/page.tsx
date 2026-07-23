@@ -1,12 +1,12 @@
 // app/dashboard/delivery-orders/page.tsx
-import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
+import { createClient } from '@/lib/supabaseServer';
 import { cookies } from 'next/headers';
 import DeliveryOrderListClient from './DeliveryOrderClient';
 
 export const dynamic = 'force-dynamic';
 
 export default async function DeliveryOrderListPage() {
-  const supabase = createServerComponentClient({ cookies });
+  const supabase = await createClient();
 
   const { data, error } = await supabase
     .from('delivery_orders')

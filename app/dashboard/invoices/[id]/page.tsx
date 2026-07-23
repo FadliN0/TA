@@ -1,4 +1,4 @@
-import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
+import { createClient } from '@/lib/supabaseServer';
 import { cookies } from 'next/headers';
 import { notFound } from 'next/navigation';
 import InvoiceDetailClient from './InvoiceDetailClient';
@@ -10,7 +10,7 @@ export default async function InvoiceDetailPage({
 }: {
   params: { id: string };
 }) {
-  const supabase = createServerComponentClient({ cookies });
+  const supabase = await createClient();
   const { id } = params;
 
   const { data: invoice } = await supabase

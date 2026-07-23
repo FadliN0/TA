@@ -45,3 +45,12 @@ export async function createStaffAccount(
     return { success: false, error: error.message };
   }
 }
+
+async function createUserByAdmin(
+  currentUser:{role : string},
+  newUser : {username : string; password: string; role: String }
+) {
+  if (currentUser.role !== 'admin'){
+    return { success: false, error: 'Akses ditolak : Hanya Admin'}
+  }
+}

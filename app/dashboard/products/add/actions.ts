@@ -1,6 +1,6 @@
 'use server';
 
-import { createServerClient } from '@/lib/supabaseServer';
+import { createClient } from '@/lib/supabaseServer';
 import { revalidatePath } from 'next/cache';
 
 type ActionResult = { success: boolean; error?: string };
@@ -16,7 +16,7 @@ type BulkProduct = {
 export async function bulkCreateProductsAction(
   payload: BulkProduct[],
 ): Promise<ActionResult> {
-  const supabase = createServerClient();
+  const supabase = await createClient();
   try {
     const { error } = await supabase.from('products').insert(payload);
     if (error) {

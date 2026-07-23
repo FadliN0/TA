@@ -1,6 +1,6 @@
 'use server';
 
-import { createServerClient } from '@/lib/supabaseServer';
+import { createClient } from '@/lib/supabaseServer';
 import { revalidatePath } from 'next/cache';
 
 type ActionResult = { success: boolean; error?: string };
@@ -17,7 +17,7 @@ type CreateQuotationPayload = {
 };
 
 export async function getCustomerAddressesAction(customerId: string) {
-  const supabase = createServerClient();
+  const supabase = await createClient();
   const { data, error } = await supabase
     .from('customer_addresses')
     .select('*')
@@ -33,7 +33,7 @@ export async function getCustomerAddressesAction(customerId: string) {
 export async function createQuotationAction(
   payload: CreateQuotationPayload,
 ): Promise<ActionResult> {
-  const supabase = createServerClient();
+  const supabase = await createClient();
   try {
     const { error } = await supabase.rpc('create_quotation_transaction', {
       p_quotation_number: payload.quotationNumber,

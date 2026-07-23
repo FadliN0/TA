@@ -1,13 +1,12 @@
 // app/dashboard/customers/page.tsx
-import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
-import { cookies } from 'next/headers';
+import { createClient } from '@/lib/supabaseServer';
 import CustomersClient from './CustomersClient';
 
 export const dynamic = 'force-dynamic';
 
 export default async function CustomersPage() {
-  const supabase = createServerComponentClient({ cookies });
-
+  const supabase = await createClient();
+  
   const { data: customers } = await supabase
     .from('customers')
     .select(`*, customer_addresses (*)`)

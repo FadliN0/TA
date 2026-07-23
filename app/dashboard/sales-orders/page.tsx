@@ -1,11 +1,10 @@
-import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
-import { cookies } from 'next/headers';
+import { createClient } from '@/lib/supabaseServer';
 import SalesOrderClient from './SalesOrderClient';
 
 export const dynamic = 'force-dynamic';
 
 export default async function SalesOrderListPage() {
-  const supabase = createServerComponentClient({ cookies });
+  const supabase = await createClient();
 
   const { data: rows } = await supabase
     .from('sales_orders')

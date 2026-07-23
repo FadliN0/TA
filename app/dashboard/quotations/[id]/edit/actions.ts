@@ -1,6 +1,6 @@
 'use server';
 
-import { createServerClient } from '@/lib/supabaseServer';
+import { createClient } from '@/lib/supabaseServer';
 import { revalidatePath } from 'next/cache';
 
 type ActionResult = { success: boolean; error?: string };
@@ -19,7 +19,7 @@ export async function updateQuotationAction(
   id: string,
   payload: UpdateQuotationPayload,
 ): Promise<ActionResult> {
-  const supabase = createServerClient();
+  const supabase = await createClient();
   try {
     const { error: qErr } = await supabase
       .from('quotations')

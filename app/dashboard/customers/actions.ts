@@ -1,7 +1,6 @@
 'use server';
 
-import { createServerActionClient } from '@supabase/auth-helpers-nextjs';
-import { cookies } from 'next/headers';
+import { createClient } from '@/lib/supabaseServer';
 import { revalidatePath } from 'next/cache';
 
 // ─── TAMBAH PELANGGAN BARU ────────────────────────────────────────────────────
@@ -19,7 +18,7 @@ export async function addCustomer(formData: {
     is_default: boolean;
   }[];
 }) {
-  const supabase = createServerActionClient({ cookies });
+  const supabase = await createClient();
 
   const { data: newCustomer, error: custError } = await supabase
     .from('customers')
@@ -69,7 +68,7 @@ export async function updateCustomer(formData: {
     is_default: boolean;
   }[];
 }) {
-  const supabase = createServerActionClient({ cookies });
+  const supabase = await createClient();
 
   const { error: custError } = await supabase
     .from('customers')
@@ -141,7 +140,7 @@ export async function updateCustomer(formData: {
 
 // ─── HAPUS PELANGGAN ──────────────────────────────────────────────────────────
 export async function deleteCustomer(customerId: string) {
-  const supabase = createServerActionClient({ cookies });
+  const supabase = await createClient();
 
   // Hapus alamat dulu (kalau belum ada CASCADE di DB)
   await supabase.from('customer_addresses').delete().eq('customer_id', customerId);

@@ -1,6 +1,6 @@
 'use server';
 
-import { createServerClient } from '@/lib/supabaseServer';
+import { createClient } from '@/lib/supabaseServer';
 
 type ReportResult = { success: boolean; data?: any[]; error?: string };
 
@@ -14,7 +14,7 @@ type TransactionsFilter = {
 export async function fetchTransactionsReportAction(
   filter: TransactionsFilter,
 ): Promise<ReportResult> {
-  const supabase = createServerClient();
+  const supabase = await createClient();
   try {
     let query = supabase
       .from('view_finance_reports')
@@ -42,7 +42,7 @@ type ProductHistoryFilter = {
 export async function fetchProductHistoryAction(
   filter: ProductHistoryFilter,
 ): Promise<ReportResult> {
-  const supabase = createServerClient();
+  const supabase = await createClient();
   try {
     let query = supabase.from('sales_order_items').select(`
       qty, unit_price, total_price,

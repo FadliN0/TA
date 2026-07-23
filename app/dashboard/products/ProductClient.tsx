@@ -53,7 +53,7 @@ export default function ProductClient({ initialProducts }: ProductClientProps) {
       supabase.removeChannel(productChannel);
     };
   }, [router]);
-
+  
   const filteredProducts = products.filter(
     (p) =>
       p.part_code?.toLowerCase().includes(search.toLowerCase()) ||

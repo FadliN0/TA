@@ -1,6 +1,6 @@
 'use server';
 
-import { createServerClient } from '@/lib/supabaseServer';
+import { createClient } from '@/lib/supabaseServer';
 import { revalidatePath } from 'next/cache';
 
 
@@ -11,7 +11,7 @@ export async function updateSalesOrderStatusAction(id: string, newStatus: string
     );
   }
 
-  const supabase = createServerClient();
+  const supabase = await createClient();
 
   // Validasi server-side: cegah pembatalan jika sudah ada DO / Invoice
   if (newStatus === 'Cancelled') {
@@ -40,7 +40,7 @@ export async function updateSalesOrderStatusAction(id: string, newStatus: string
  * 'generate_full_invoice_from_so' (due date default 30 hari).
  */
 export async function createInvoiceFromSoAction(id: string) {
-  const supabase = createServerClient();
+  const supabase = await createClient();
 
   const dueDate = new Date();
   dueDate.setDate(dueDate.getDate() + 30);

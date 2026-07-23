@@ -1,5 +1,5 @@
 // app/dashboard/delivery-orders/create/page.tsx
-import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
+import { createClient } from '@/lib/supabaseServer';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import CreateDOClient from './CreateDOClient';
@@ -14,7 +14,7 @@ export default async function DeliveryOrderCreatePage({
   const so_id = searchParams.so_id;
   if (!so_id) redirect('/dashboard/sales-orders');
 
-  const supabase = createServerComponentClient({ cookies });
+  const supabase = await createClient();
 
   // === TAHAP 1: salesOrder + backorders (keduanya hanya butuh so_id) ===
   const [salesOrderRes, backordersRes] = await Promise.all([

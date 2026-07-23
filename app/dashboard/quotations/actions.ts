@@ -1,12 +1,12 @@
 'use server';
 
-import { createServerClient } from '@/lib/supabaseServer';
+import { createClient } from '@/lib/supabaseServer';
 import { revalidatePath } from 'next/cache';
 
 type ActionResult = { success: boolean; error?: string };
 
 export async function deleteQuotationAction(id: string): Promise<ActionResult> {
-  const supabase = createServerClient();
+  const supabase = await createClient();
   try {
     const { error } = await supabase.from('quotations').delete().eq('id', id);
     if (error) throw error;
@@ -23,7 +23,7 @@ export async function updateProductFieldAction(
   field: 'price' | 'remark',
   value: number | string,
 ): Promise<ActionResult> {
-  const supabase = createServerClient();
+  const supabase = await createClient();
   try {
     const { error } = await supabase
       .from('products')

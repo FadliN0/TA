@@ -1,4 +1,4 @@
-import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
+import { createClient } from '@/lib/supabaseServer';
 import { cookies } from 'next/headers';
 import { notFound } from 'next/navigation';
 import DeliveryOrderDetailClient from './DeliveryOrderDetailClient';
@@ -10,7 +10,7 @@ export default async function DeliveryOrderDetailPage({
 }: {
   params: { id: string };
 }) {
-  const supabase = createServerComponentClient({ cookies });
+  const supabase = await createClient();
   const id = params.id;
 
   // ── TAHAP 1: deliveryOrder (untuk guard + so_id + address_id) ──

@@ -3,13 +3,12 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import  { supabase } from '@/lib/supabase';
 import { ToastProvider } from '@/components/ui/Alert';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter(); 
-  const supabase = createClientComponentClient();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   
   // === STATE KEAMANAN & USER ===

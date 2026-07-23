@@ -1,6 +1,6 @@
 'use server';
 
-import { createServerClient } from '@/lib/supabaseServer';
+import { createClient } from '@/lib/supabaseServer';
 import { revalidatePath } from 'next/cache';
 
 type ActionResult = { success: boolean; error?: string };
@@ -14,7 +14,7 @@ export async function saveInvoiceEditsAction(
     itemNotes: Array<{ id: string; item_note: string }>;
   },
 ): Promise<ActionResult> {
-  const supabase = createServerClient();
+  const supabase = await createClient();
   try {
     const { error: invErr } = await supabase
       .from('invoices')
@@ -57,7 +57,7 @@ export async function recordPaymentAction(
     referenceNumber: string | null;
   },
 ): Promise<ActionResult> {
-  const supabase = createServerClient();
+  const supabase = await createClient();
   try {
     const { error } = await supabase.from('payments').insert({
       invoice_id: invoiceId,
@@ -80,7 +80,7 @@ export async function cancelInvoiceAction(
   invoiceId: string,
   reason: string,
 ): Promise<ActionResult> {
-  const supabase = createServerClient();
+  const supabase = await createClient();
   try {
     const { error } = await supabase.rpc('cancel_invoice', {
       p_invoice_id: invoiceId,

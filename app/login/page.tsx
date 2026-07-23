@@ -2,12 +2,11 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { supabase } from '@/lib/supabase'; // Hanya dipertahankan untuk Kueri SELECT (Read-only) riwayat tren
 import Image from 'next/image';
 
 export default function LoginPage() {
   const router = useRouter();
-  const supabase = createClientComponentClient();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);

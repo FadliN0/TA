@@ -1,11 +1,11 @@
-import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
 import { cookies } from 'next/headers';
 import DashboardClient from './Dashboard';
+import { createClient } from '@/lib/supabaseServer';
 
 export const dynamic = 'force-dynamic'; // Selalu ambil data terbaru
 
 export default async function DashboardHome() {
-  const supabase = createServerComponentClient({ cookies });
+  const supabase = await createClient();
   
   // 1. Ambil Nama User
   const { data: { session } } = await supabase.auth.getSession();

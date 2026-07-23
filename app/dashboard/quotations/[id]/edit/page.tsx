@@ -1,4 +1,4 @@
-import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
+import { createClient } from "@/lib/supabaseServer";
 import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 import EditQuotationClient from "./EditQuotationClient";
@@ -11,7 +11,7 @@ export default async function EditQuotationPage({
   params: { id: string };
 }) {
   const { id } = params;
-  const supabase = createServerComponentClient({ cookies });
+  const supabase = await createClient();
 
   const [productsRes, customerRes, quoteRes] = await Promise.all([
     supabase.from("products").select("*").order("part_code"),
