@@ -1,12 +1,19 @@
-import UserClient from './UserClient';
-import { getUsers } from './actions';
+import { redirect } from 'next/navigation'
+import { createClient } from '@/lib/supabaseServer'
+import { getUsers } from './actions'
+import UserClient from './UserClient'
 
-export const dynamic = 'force-dynamic';
+export default async function UsersPage() {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
 
-export default async function MasterDataUserPage() {
-  // Data pengguna ditarik di server (pakai service-role admin client)
-  const result = await getUsers();
-  const initialUsers = result.success && result.data ? result.data : [];
+  const { data: profile } = await supabase
+    .from('profiles').select('role').eq('id', user.id).single()
+  if (profile?.role?.toLowerCase() !== 'atasan') redirect('/dashboard')
 
-  return <UserClient initialUsers={initialUsers} />;
+  const res = await getUsers()          // server memanggil action LANGSUNG
+  const users = res.success ? res.data : []
+
+  return <UserClient initialUsers={users ?? []} />
 }

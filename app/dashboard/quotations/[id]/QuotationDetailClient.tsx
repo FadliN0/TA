@@ -362,13 +362,13 @@ export default function QuotationDetailClient({
             }}
           >
             <colgroup>
-              <col style={{ width: 50 }} /> {/* label kiri */}
-              <col style={{ width: 10 }} /> {/* titik dua kiri */}
-              <col /> {/* value kiri (fleksibel, nampung address) */}
-              <col style={{ width: 24 }} /> {/* jarak antar kolom */}
-              <col style={{ width: 55 }} /> {/* label kanan */}
-              <col style={{ width: 10 }} /> {/* titik dua kanan */}
-              <col style={{ width: 130 }} /> {/* value kanan */}
+              <col style={{ width: 50 }} /> 
+              <col style={{ width: 10 }} /> 
+              <col /> 
+              <col style={{ width: 24 }} /> 
+              <col style={{ width: 55 }} /> 
+              <col style={{ width: 10 }} /> 
+              <col style={{ width: 130 }} /> 
             </colgroup>
             <tbody>
               {/* Baris 1: TO | No */}
@@ -480,15 +480,15 @@ export default function QuotationDetailClient({
             }}
           >
             <colgroup>
-              <col style={{ width: 30 }} /> {/* No */}
-              <col style={{ width: 95 }} /> {/* Part Number */}
-              <col style={{ width: 150 }} /> {/* Description */}
-              <col style={{ width: 32 }} /> {/* Qty */}
-              <col style={{ width: 32 }} /> {/* Unit */}
-              <col style={{ width: 93 }} /> {/* Unit Price */}
-              <col style={{ width: 35 }} /> {/* Disc */}
-              <col /> {/* Amount */}
-              <col style={{ width: 73 }} /> {/* Remark */}
+              <col style={{ width: 30 }} /> 
+              <col style={{ width: 95 }} /> 
+              <col style={{ width: 150 }} /> 
+              <col style={{ width: 32 }} /> 
+              <col style={{ width: 32 }} /> 
+              <col style={{ width: 93 }} /> 
+              <col style={{ width: 35 }} /> 
+              <col /> 
+              <col style={{ width: 73 }} /> 
             </colgroup>
             <thead>
               <tr>

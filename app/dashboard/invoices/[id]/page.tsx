@@ -8,10 +8,10 @@ export const dynamic = 'force-dynamic';
 export default async function InvoiceDetailPage({
   params,
 }: {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }) {
   const supabase = await createClient();
-  const { id } = params;
+  const { id } = await params;
 
   const { data: invoice } = await supabase
     .from('invoices')

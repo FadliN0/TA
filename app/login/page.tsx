@@ -4,10 +4,11 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase'; // Hanya dipertahankan untuk Kueri SELECT (Read-only) riwayat tren
 import Image from 'next/image';
+import { usernameToEmail } from '@/lib/auth-utils'
 
 export default function LoginPage() {
   const router = useRouter();
-  const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -18,6 +19,8 @@ export default function LoginPage() {
     setError(null);
 
     try {
+      const raw = username.trim().toLowerCase();
+      const email = raw.includes('@')? raw :usernameToEmail(raw);
       const { error: authErr } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -28,9 +31,12 @@ export default function LoginPage() {
       router.refresh();
       router.push('/dashboard');
     } catch (err: any) {
-      console.error('Error dari Supabase:', err);
-      setError(err.message || 'Gagal terhubung ke server.');
-    } finally {
+        if (err.message?.includes('Invalid login credentials')) {
+        setError('Username atau password salah.');
+      } else {
+        setError(err.message || 'Gagal terhubung ke server.');
+      } 
+    }finally {
       setIsLoading(false);
     }
   };
@@ -88,13 +94,13 @@ export default function LoginPage() {
                   </svg>
                 </span>
                 <input
-                  type="email"
+                  type="text"
                   required
-                  autoComplete="email"
+                  autoComplete="username"
                   className="w-full border border-slate-200 bg-slate-50 rounded-2xl pl-10 pr-4 py-3 text-sm text-slate-800 placeholder-slate-400 outline-none focus:border-blue-400 focus:bg-white focus:ring-3 focus:ring-blue-100 transition-all"
-                  placeholder="admin@hjp.co.id"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="mis. admin"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
                 />
               </div>
             </div>

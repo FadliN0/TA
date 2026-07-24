@@ -520,7 +520,7 @@ export default function InvoiceDetailClient({
                       <tr>
                         <td>Delivery Terms</td>
                         <td>:</td>
-                        <td>Franco GTS</td>
+                        <td>Franco Site</td>
                       </tr>
                     </tbody>
                   </table>

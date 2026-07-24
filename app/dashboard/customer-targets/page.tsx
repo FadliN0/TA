@@ -7,16 +7,17 @@ export const dynamic = 'force-dynamic';
 export default async function TargetManagementPage({
   searchParams,
 }: {
-  searchParams: { month?: string; year?: string };
+  searchParams: Promise<{ month?: string; year?: string }>;
 }) {
   const supabase = await createClient();
 
   // Sinkron → siapkan dulu (tak ada await)
-  const currentMonth = searchParams.month
-    ? parseInt(searchParams.month)
+  const { month, year } = await searchParams;
+  const currentMonth = month
+    ? parseInt(month)
     : new Date().getMonth() + 1;
-  const currentYear = searchParams.year
-    ? parseInt(searchParams.year)
+  const currentYear = year
+    ? parseInt(year)
     : new Date().getFullYear();
 
   // 4 query mandiri → jalankan bersamaan

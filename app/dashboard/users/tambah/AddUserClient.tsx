@@ -5,7 +5,7 @@ import { createStaffAccount } from './actions';
 import { useToast } from '@/components/ui/Alert';
 
 export default function AddUserClient() {
-  const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const toast = useToast();
   // Ubah default ke 'admin' huruf kecil
@@ -17,14 +17,14 @@ export default function AddUserClient() {
     setLoading(true);
 
     // Memanggil fungsi dari server, PASTIKAN MENGIRIM ROLE JUGA
-    const result = await createStaffAccount(email, password, role);
+    const result = await createStaffAccount(username, password, role);
 
     if (result.success) {
       toast.success(
-        `Berhasil! Akun ${email} siap digunakan dengan hak akses ${role.toUpperCase()}.`,
+        `Berhasil! Akun ${username} siap digunakan dengan hak akses ${role.toUpperCase()}.`,
         'Sukses'
       );
-      setEmail('');
+      setUsername('');
       setPassword('');
     } else {
       toast.error(`Gagal membuat akun: ${result.error}`, 'Error');
@@ -53,15 +53,15 @@ export default function AddUserClient() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             <div>
               <label className="text-xs font-bold text-gray-500 uppercase">
-                Email Pengguna Baru
+                Username Pengguna Baru
               </label>
               <input
-                type="email"
+                type="text"
                 required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
                 className="w-full border-2 border-gray-200 p-3 rounded-xl mt-1 outline-none focus:border-blue-500 transition-colors font-medium text-gray-800"
-                placeholder="contoh: bos.hjp@gmail.com"
+                placeholder="contoh: Budi.admin"
               />
             </div>
             <div>
@@ -69,7 +69,7 @@ export default function AddUserClient() {
                 Kata Sandi (Password)
               </label>
               <input
-                type="text"
+                type="password"
                 required
                 minLength={6}
                 value={password}

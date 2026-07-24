@@ -8,9 +8,9 @@ export const dynamic = "force-dynamic";
 export default async function EditQuotationPage({
   params,
 }: {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }) {
-  const { id } = params;
+  const { id } = await params;
   const supabase = await createClient();
 
   const [productsRes, customerRes, quoteRes] = await Promise.all([

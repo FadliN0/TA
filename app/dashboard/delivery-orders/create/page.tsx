@@ -9,9 +9,9 @@ export const dynamic = 'force-dynamic';
 export default async function DeliveryOrderCreatePage({
   searchParams,
 }: {
-  searchParams: { so_id?: string };
+  searchParams: Promise<{ so_id?: string }>;
 }) {
-  const so_id = searchParams.so_id;
+  const { so_id } = await searchParams;
   if (!so_id) redirect('/dashboard/sales-orders');
 
   const supabase = await createClient();

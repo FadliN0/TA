@@ -115,7 +115,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     { 
       name: 'Tracking Dokumen', 
       href: '/dashboard/tracking', // Sesuaikan dengan nama foldernya
-      allowedRoles: [ 'manager'], 
+      allowedRoles: [ '-'], 
       icon: '🔎' 
     },
     { 

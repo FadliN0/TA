@@ -8,10 +8,10 @@ export const dynamic = 'force-dynamic';
 export default async function DeliveryOrderDetailPage({
   params,
 }: {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }) {
   const supabase = await createClient();
-  const id = params.id;
+  const id = (await params).id;
 
   // ── TAHAP 1: deliveryOrder (untuk guard + so_id + address_id) ──
   const { data: deliveryOrder } = await supabase

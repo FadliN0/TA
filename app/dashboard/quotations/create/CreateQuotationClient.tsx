@@ -33,7 +33,7 @@ export default function CreateQuotationClient({
   const [selectedCustomerId, setSelectedCustomerId] = useState("");
   const [selectedAddressId, setSelectedAddressId] = useState("");
   const [mrNumber, setMrNumber] = useState("");
-  const [notes, setNotes] = useState("Ready Stock\nFranco GTS");
+  const [notes, setNotes] = useState("Ready Stock\nFranco Site");
 
   // Diskon nominal manual (tingkat dokumen). Hanya dihitung di sisi client,
   // TIDAK disimpan ke database. Yang disimpan tetap grand total.
